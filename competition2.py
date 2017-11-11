@@ -1,6 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
+observations = np.genfromtxt("Observations.csv", delimiter = ',')
+labels = np.genfromtxt("Label.csv", delimiter=',')
 
 
 # Visualize the clustering on a 2D graph
@@ -16,9 +18,18 @@ def visualizeClusters(M, clusters, title="Clustering"):
 	plt.colorbar()
 	plt.show()
 
+def createLocationMatrix(labels):
+	M = np.zeros((6000, 1000), dtype = 'float32, float32')
+
+	for i in range(labels.shape[0]):
+		row, column, x, y = labels[i, :]
+		M[row, column] = (x, y)
+
+	return M
+
 
 def run():
-
+	M = createLocationMatrix(labels)
 
 
 
