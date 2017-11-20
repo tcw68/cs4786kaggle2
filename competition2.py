@@ -1,5 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from hmmlearn import hmm
+import Markov
+
 
 observations = np.genfromtxt("Observations.csv", delimiter = ',')
 labels = np.genfromtxt("Label.csv", delimiter=',')
@@ -23,13 +26,37 @@ def createLocationMatrix(labels):
 
 	for i in range(labels.shape[0]):
 		row, column, x, y = labels[i, :]
-		M[row, column] = (x, y)
+		M[int(row), int(column)] = (x, y)
 
 	return M
+
+def createObservationMatrix(observations):
+	O = np.zeros((10000, 1000))
+	for i in range(observations.shape[0]):
+		for j in range(observations.shape[1]):
+			O[i, j] = observations[i, j]
+
+	return O
+
+def guassianHMM():
+	model = hmm.GaussianHMM(n_components=3, covariance_type="full")
+
+def haha():
+	return
+
+def createSubmission(matrix):
+	N = np.zeros((12000, 1))
+
+	for i in range(matrix.shape[0]):
+		N[2i, :] = matrix[i, 0]
+		N[2i+1, :] = matrix[i, 1]
+
+	np.savetxt('hmm_submission.csv', N, fmt='%f', delimiter=",", header="Id,Label", comments='')
 
 
 def run():
 	M = createLocationMatrix(labels)
+	O = createObservationMatrix(observations)
 
 
 
