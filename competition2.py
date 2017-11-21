@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from hmmlearn import hmm
 import Markov
-
+from math import *
 
 # Visualize the clustering on a 2D graph
 # Credit: Special thanks to Ilan Filonenko for this plotting approach
@@ -48,13 +48,68 @@ def createSubmission(matrix):
 
 	np.savetxt('hmm_submission.csv', N, fmt='%f', delimiter=",", header="Id,Label", comments='')
 
-
-def run():
-	LM = createLocationMatrix()
+# Create the labels dictionary
+# Dict format: {Run: [(Step1, (x1, y1)) ... ]}
+def createLabelsDict():
+	labels = np.genfromtxt("../Label.csv", delimiter=',')
 	OM = createObservationMatrix()
 
+	locations = {}
+	for i in range(labels.shape[0]):
+		run, step, x, y = labels[i, :]
+		run, step = int(run), int(step)
+		observation = OM[run-1, step-1]
+		val = (step, (x, y), observation)
+
+		if run in locations:
+			if val not in locations[run]:
+				locations[run].append(val)
+		else:
+			locations[run] = [val]
+
+	for key, val in locations.items():
+		orderedVal = sorted(val, key=lambda x: x[0])
+		locations[key] = orderedVal
+
+	return locations
+
+def plotBotMovement():
+	labels = np.genfromtxt("../Label.csv", delimiter=',')
+
+	locations = {}
+	xVals, yVals = [], []
+	for i in range(labels.shape[0]):
+		run, step, x, y = labels[i, :]
+		locations.setdefault(run, []).append((step, (x, y)))
+		xVals.append(x)
+		yVals.append(y)
+
+	for key, val in locations.items():
+		orderedVal = sorted(val, key=lambda x: x[0])
+		locations[key] = orderedVal
+
+	plt.plot(xVals, yVals, 'ro')
+	plt.show()
+
+# Calculate the (alpha, beta) offset values from original position
+def calculateAlphaBeta(x1, y1, x2, y2, theta1, theta2):
+	# Calculate alpha
+	alphaNum = (tan(theta1) * tan(theta2) * (y2 - y1)) - (x2 * tan(theta1)) + (x1 * tan(theta2))
+	alphaDen = tan(theta1) - tan(theta2)
+	alpha =  alphaNum / alphaDen
+
+	# Calculate beta
+	beta = ((x1 + alpha) / (tan(theta1))) - y1
+
+	return (alpha, beta)
+
+def run():
+	# LM = createLocationMatrix()
+	OM = createObservationMatrix()
 
 if __name__ == '__main__':
 	np.set_printoptions(threshold=np.nan)
-	run()
+	labelsDict = createLabelsDict()
+
+
 
