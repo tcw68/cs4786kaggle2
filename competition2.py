@@ -97,8 +97,6 @@ def calculateAlphaBeta(x1, y1, x2, y2, theta1, theta2):
 	# Calculate alpha
 	alphaNum = (x2 * tan(theta2)) - (x1 * tan(theta1)) + y1 - y2
 	alphaDen = tan(theta1) - tan(theta2)
-	print alphaNum
-	print alphaDen
 	alpha =  alphaNum / alphaDen
 
 	# Calculate beta
