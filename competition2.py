@@ -81,8 +81,8 @@ def plotBotMovement():
 	for i in range(labels.shape[0]):
 		run, step, x, y = labels[i, :]
 		locations.setdefault(run, []).append((step, (x, y)))
-		xVals.append(x)
-		yVals.append(y)
+		xVals.append(x+1.5)
+		yVals.append(y+1.5)
 
 	for key, val in locations.items():
 		orderedVal = sorted(val, key=lambda x: x[0])
@@ -103,13 +103,29 @@ def calculateAlphaBeta(x1, y1, x2, y2, theta1, theta2):
 
 	return (alpha, beta)
 
+def saveSorted():
+	labels = np.genfromtxt("../Label.csv", delimiter=',')
+	sortedLabels = np.zeros((600000, 4))
+	a = labels[:, 0]
+	b = labels[:, 1]
+
+	indices = np.lexsort((b, a))
+	for i, row in enumerate(indices):
+		sortedLabels[i, :] = labels[indices[i]]
+
+	print "saving"
+	np.savetxt('sorted_Labels.csv', sortedLabels, fmt='%f', delimiter=",")
+
+
 def run():
 	# LM = createLocationMatrix()
-	OM = createObservationMatrix()
+	# saveSorted()
+	plotBotMovement()
 
 if __name__ == '__main__':
 	np.set_printoptions(threshold=np.nan)
 	labelsDict = createLabelsDict()
+	run()
 
 
 
