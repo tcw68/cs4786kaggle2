@@ -131,7 +131,8 @@ def calculateAlphaBeta(x1, y1, x2, y2, theta1, theta2):
 
 	return (alpha, beta)
 
-# Calculate min, max
+# Calculate [(minX, minY), (maxX, maxY)] from labels
+# [(minX, minY), (maxX, maxY)] = [(-1.3074, -1.2908), (1.328, 1.2674)]
 def calculateMinMaxXY():
 	labels = np.genfromtxt("../Label.csv", delimiter=',')
 
