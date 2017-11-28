@@ -92,14 +92,15 @@ def plotBotMovement():
 	plt.show()
 
 # Calculate the (alpha, beta) offset values from original position
+# alpha = beta = 1.5
 def calculateAlphaBeta(x1, y1, x2, y2, theta1, theta2):
 	# Calculate alpha
-	alphaNum = (tan(theta1) * tan(theta2) * (y2 - y1)) - (x2 * tan(theta1)) + (x1 * tan(theta2))
+	alphaNum = (x2 * tan(theta2)) - (x1 * tan(theta1)) + y1 - y2
 	alphaDen = tan(theta1) - tan(theta2)
 	alpha =  alphaNum / alphaDen
 
 	# Calculate beta
-	beta = ((x1 + alpha) / (tan(theta1))) - y1
+	beta = ((x1 + alpha) * (tan(theta1))) - y1
 
 	return (alpha, beta)
 
@@ -138,7 +139,6 @@ def run():
 if __name__ == '__main__':
 	np.set_printoptions(threshold=np.nan)
 	labelsDict = createLabelsDict()
-	run()
 
 
 
