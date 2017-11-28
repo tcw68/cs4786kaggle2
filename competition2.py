@@ -114,13 +114,26 @@ def saveSorted():
 		sortedLabels[i, :] = labels[indices[i]]
 
 	print "saving"
-	np.savetxt('sorted_Labels.csv', sortedLabels, fmt='%f', delimiter=",")
+	np.savetxt('sorted_Labels.csv', sortedLabels, fmt=['%i']*2 + ['%f']*2, delimiter=",")
+
+def findAverageStepSize():
+	sortedLabels = np.genfromtxt("sorted_Labels.csv", delimiter=',')
+	distances = []
+
+	for i in range(sortedLabels.shape[0] - 1):
+		if sortedLabels[i, 0] == sortedLabels[i+1, 0]:
+			if sortedLabels[i, 1] + 1 == sortedLabels[i+1, 1]:
+				distances.append(np.linalg.norm(sortedLabels[i,2:]-sortedLabels[i+1,2:]))
+
+	distances = np.array(distances)
+	return np.mean(distances)
 
 
 def run():
 	# LM = createLocationMatrix()
 	# saveSorted()
-	plotBotMovement()
+	# plotBotMovement()
+	print findAverageStepSize()
 
 if __name__ == '__main__':
 	np.set_printoptions(threshold=np.nan)
