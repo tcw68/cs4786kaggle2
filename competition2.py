@@ -34,7 +34,7 @@ def createLocationMatrix():
 def createObservationMatrix():
 	observations = np.genfromtxt("../Observations.csv", delimiter = ',')
 
-	return observations 
+	return observations
 
 def guassianHMM():
 	model = hmm.GaussianHMM(n_components=3, covariance_type="full")
@@ -114,7 +114,7 @@ def saveSorted():
 		sortedLabels[i, :] = labels[indices[i]]
 
 	print "saving"
-	np.savetxt('sorted_Labels.csv', sortedLabels, fmt=['%i']*2 + ['%f']*2, delimiter=",")
+	np.savetxt('../LabelSorted.csv', sortedLabels, fmt=['%i']*2 + ['%f']*2, delimiter=",")
 
 def findAverageStepSize():
 	sortedLabels = np.genfromtxt("sorted_Labels.csv", delimiter=',')
