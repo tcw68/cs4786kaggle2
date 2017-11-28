@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 from hmmlearn import hmm
 import Markov
 from math import *
+from sklearn.externals import joblib
 
 # Visualize the clustering on a 2D graph
 # Credit: Special thanks to Ilan Filonenko for this plotting approach
@@ -35,9 +36,6 @@ def createObservationMatrix():
 	observations = np.genfromtxt("../Observations.csv", delimiter = ',')
 
 	return observations
-
-def guassianHMM():
-	model = hmm.GaussianHMM(n_components=3, covariance_type="full")
 
 def createSubmission(matrix):
 	N = np.zeros((12000, 1))
@@ -134,11 +132,18 @@ def run():
 	# LM = createLocationMatrix()
 	# saveSorted()
 	# plotBotMovement()
-	print findAverageStepSize()
+	# print findAverageStepSize()
+	observations = np.genfromtxt("../Observations.csv", delimiter = ',')
+
+	print "starting hmm"
+	model = hmm.GaussianHMM(n_components=225, covariance_type="full")
+	model.fit(observations)
+	print "done"
+	joblib.dump(model, "hmm225.pkl")
 
 if __name__ == '__main__':
 	np.set_printoptions(threshold=np.nan)
 	labelsDict = createLabelsDict()
-
+	run()
 
 
