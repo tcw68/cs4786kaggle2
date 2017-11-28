@@ -4,6 +4,7 @@ from hmmlearn import hmm
 import Markov
 from math import *
 from sklearn.externals import joblib
+import time
 
 # Visualize the clustering on a 2D graph
 # Credit: Special thanks to Ilan Filonenko for this plotting approach
@@ -116,7 +117,7 @@ def saveSorted():
 	np.savetxt('../LabelSorted.csv', sortedLabels, fmt=['%i']*2 + ['%f']*2, delimiter=",")
 
 def findAverageStepSize():
-	sortedLabels = np.genfromtxt("sorted_Labels.csv", delimiter=',')
+	sortedLabels = np.genfromtxt("../LabelSorted.csv", delimiter=',')
 	distances = []
 
 	for i in range(sortedLabels.shape[0] - 1):
@@ -133,17 +134,21 @@ def run():
 	# saveSorted()
 	# plotBotMovement()
 	# print findAverageStepSize()
+
 	observations = np.genfromtxt("../Observations.csv", delimiter = ',')
 
 	print "starting hmm"
-	model = hmm.GaussianHMM(n_components=225, covariance_type="full")
+	start_time = time.time()
+	k = 625
+	model = hmm.GaussianHMM(n_components=k, covariance_type="full")
 	model.fit(observations)
 	print "done"
-	joblib.dump(model, "hmm225.pkl")
+	joblib.dump(model, "hmm"+str(k)+".pkl")
+	print("--- %s seconds ---" % (time.time() - start_time))
 
 if __name__ == '__main__':
 	np.set_printoptions(threshold=np.nan)
-	labelsDict = createLabelsDict()
+	# labelsDict = createLabelsDict()
 	run()
 
 
