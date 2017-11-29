@@ -252,6 +252,52 @@ def getPredictedStates(model):
 
 	return np.reshape(predictedStates, (10000,1000))
 
+def linearRegression():
+	sortedLabels = np.genfromtxt("../LabelSorted.csv", delimiter=',')
+	regr = linear_model.LinearRegression()
+	x_train = []
+	y_train = []
+	x_train.append(993)
+	x_train.append(999)
+	x_train.append(1000)
+	y_train.append((sortedLabels[297, 2], sortedLabels[297, 3]))
+	y_train.append((sortedLabels[298,2], sortedLabels[298, 3]))
+	y_train.append((sortedLabels[299, 2], sortedLabels[299, 3]))
+
+	regr.fit(np.array(x_train).reshape(-1, 1), np.array(y_train).reshape(-1,1))
+
+	y_pred = regr.predict(1001)
+	print y_pred
+
+
+def run():
+	return
+	# observations = np.genfromtxt("../Observations.csv", delimiter = ',')
+	# writeLabelSortedCSV()
+
+	# print "starting hmm"
+	# start_time = time.time()
+	# k = 20
+	# model = hmm.GaussianHMM(n_components=k)
+	# model.fit(observations)
+	# print "done running hmm"
+	# joblib.dump(model, "hmm"+str(k)+".pkl")
+	# print("--- %s seconds ---" % (time.time() - start_time))
+	# model = joblib.load("hmm20.pkl")
+	# print model.predict(observations)
+	# sortedLabels = np.genfromtxt("../LabelSorted.csv", delimiter=',')
+	# x = np.array([993, 999, 1000])
+	# y1 = np.array([sortedLabels[297, 2], sortedLabels[298, 2], sortedLabels[299,2]])
+	# y2 = np.array([sortedLabels[297, 3], sortedLabels[298, 3], sortedLabels[299,3]])
+	# A = np.vstack([x, np.ones(len(x))]).T
+
+	# m1, c1 = np.linalg.lstsq(A, y1)[0]
+	# m2, c2 = np.linalg.lstsq(A, y2)[0]
+
+	# x = m1 * 1001 + c1
+	# y = m2 * 1001 + c1
+	# print x, y
+	# # linearRegression()
 
 if __name__ == '__main__':
 	np.set_printoptions(threshold=np.nan)
@@ -265,8 +311,11 @@ if __name__ == '__main__':
 
 	# labelsDict = loadDict('labels_dict.pkl')
 	model = joblib.load('hmm10_diag.pkl')
+	last4000last5 = np.zeros((4000, 5))
 	predictedStates = getPredictedStates(model)
-	plotPredictedStates(predictedStates)
+	last4000last5 = predictedStates[6000:,-5:]
+	print last4000last5
+	# plotPredictedStates(predictedStates)
 
 
 	# plotStates(predictions)
