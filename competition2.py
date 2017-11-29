@@ -32,7 +32,7 @@ def plotBotMovement():
 
 # Plot the states that the labels are assigned to
 # Currently supports up to HMM 16
-def plotPredictedStates(predictedStates, numStates=10):
+def plotPredictedStates(predictedStates, numStates=16):
 	labels = np.genfromtxt("../Label.csv", delimiter=',')
 
 	# Map each state to a distinct RGB color
@@ -44,14 +44,14 @@ def plotPredictedStates(predictedStates, numStates=10):
 	yVals = [[] for _ in range(numStates)]
 	for label in labels:
 		run, step, x, y = label
-		nextState = predictedStates[int(run) - 1, int(step) - 1]
+		nextState = int(predictedStates[int(run) - 1, int(step) - 1])
 		xVals[nextState].append(x + 1.5)
 		yVals[nextState].append(y + 1.5)
 
 	for i in range(numStates):
 		plt.scatter(xVals[i], yVals[i], color=cmap[i], marker='.')
 
-	plt.plot([0, 2.5], [2.5, 0], linestyle='solid')
+	plt.plot([0, 2.5], [2.5, 0], linestyle='solid') 
 	plt.show()
 
 #################
@@ -104,8 +104,8 @@ def createLabelsDict():
 	return locations
  
 # Create submission file using 4000 (x, y) predicted location points
-def createSubmission(predLocations):
-	with open('hmm10_submission.csv', 'wb') as f:
+def createSubmission(predLocations, k):
+	with open('hmm%i_submission.csv' % k, 'wb') as f:
 		f.write('Id,Value\n')
 
 		for i, (x, y) in enumerate(predLocations):
@@ -145,14 +145,14 @@ def writeLabelSortedCSV():
 	np.savetxt('../LabelSorted.csv', sortedLabels, fmt=['%i']*2 + ['%f']*2, delimiter=",")
 
 # Write to CSV the 10000 x 1000 predicted states matrix
-def writePredictedStatesCSV():
-	model = joblib.load('hmm10_diag.pkl')
+def writePredictedStatesCSV(k=10):
+	model = joblib.load('hmm%i_diag.pkl' % k)
 	predictedStates = getPredictedStates(model)
-	np.savetxt('hmm10_predicted_states.csv', predictedStates, fmt='%i', delimiter=",")
+	np.savetxt('hmm%i_predicted_states.csv' % k, predictedStates, fmt='%i', delimiter=",")
 
 # Load 10000 x 1000 predicted states matrix from CSV
-def loadPredictedStatesCSV():
-	predictedStates = np.genfromtxt("hmm10_predicted_states.csv", delimiter=',')
+def loadPredictedStatesCSV(k=10):
+	predictedStates = np.genfromtxt("hmm%i_predicted_states.csv" % k, delimiter=',')
 
 	return predictedStates
 
@@ -320,7 +320,7 @@ def getLast4000Direction(predictedStates, mapping):
 
 	for i in range(last4000last5.shape[0]):
 		for j in range(last4000last5.shape[1]):
-			last4000last5[i, j] = hmm10_pred_actual_mapping[last4000last5[i, j]]
+			last4000last5[i, j] = mapping[last4000last5[i, j]]
 
 	directions = [] # -1 for decreasing, 1 for increasing
 	for last5 in last4000last5:
@@ -341,9 +341,8 @@ def getLast4000Direction(predictedStates, mapping):
 
 	return directions
 
-if __name__ == '__main__':
-	np.set_printoptions(threshold=np.nan)
-
+# Write HMM 10 submission file
+def hmm10():
 	hmm10_pred_actual_mapping = {
 		0: 3,
 		1: 7,
@@ -370,6 +369,47 @@ if __name__ == '__main__':
 		predLocations.append(predLocation)
 
 	createSubmission(predLocations)
+
+# Write HMM 16 submission file
+def hmm16():
+	hmm16_pred_actual_mapping = {
+		0: 1,
+		1: 11,
+		2: 6,
+		3: 14,
+		4: 9,
+		5: 4,
+		6: 13,
+		7: 5,
+		8: 10,
+		9: 7,
+		10: 0,
+		11: 3,
+		12: 12,
+		13: 2,
+		14: 15,
+		15: 8
+	}
+
+	predictedStates = loadPredictedStatesCSV(16)
+	centroidMapping = loadDict('hmm16_centroid_mapping.csv')
+
+	last4000Direction = getLast4000Direction(predictedStates, hmm16_pred_actual_mapping)
+	last4000States = predictedStates[6000:,-1]
+
+	predLocations = []
+	for state, direction in zip(last4000States, last4000Direction):
+		botCoord, topCoord = centroidMapping[state]
+		predLocation = topCoord if direction == 1 else botCoord
+		predLocations.append(predLocation)
+
+	createSubmission(predLocations, 16)
+
+if __name__ == '__main__':
+	np.set_printoptions(threshold=np.nan)
+
+	
+
 
 	
 
