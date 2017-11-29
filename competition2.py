@@ -35,7 +35,7 @@ def plotPredictedStates(predictedStates, numStates=10):
 	labels = np.genfromtxt("../Label.csv", delimiter=',')
 
 	# Map each state to a distinct RGB color
-	cmap = ['#f45342', '#f4a041', '#f4ee41', '#d3f441', '#7ff441', '#41f4df', '#41a6f4', '#5241f4', '#d641f4', '#f44176']
+	cmap = ['#ff1111', '#ff8b11', '#fff311', '#9bff11', '#11ff88', '#11f7ff', '#1160ff', '#7011ff', '#ff11e7', '#ff114c']
 
 	xVals = [[] for _ in range(numStates)]
 	yVals = [[] for _ in range(numStates)]
