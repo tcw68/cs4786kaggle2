@@ -32,7 +32,7 @@ def plotBotMovement():
 
 # Plot the states that the labels are assigned to
 # Currently supports up to HMM 16
-def plotPredictedStates(predictedStates, numStates=16):
+def plotPredictedStates(predictedStates, centroidMapping=None, numStates=10):
 	labels = np.genfromtxt("../Label.csv", delimiter=',')
 
 	# Map each state to a distinct RGB color
@@ -50,6 +50,16 @@ def plotPredictedStates(predictedStates, numStates=16):
 
 	for i in range(numStates):
 		plt.scatter(xVals[i], yVals[i], color=cmap[i], marker='.')
+
+	if centroidMapping:
+		xCentroids, yCentroids = [], []
+		for botCoord, topCoord in centroidMapping.values():
+			botX, botY = botCoord
+			topX, topY = topCoord
+			xCentroids.extend([botX, topX])
+			yCentroids.extend([botY, topY])
+
+	plt.plot(xCentroids, yCentroids, 'wo')
 
 	plt.plot([0, 2.5], [2.5, 0], linestyle='solid') 
 	plt.show()
@@ -407,6 +417,28 @@ def hmm16():
 
 if __name__ == '__main__':
 	np.set_printoptions(threshold=np.nan)
+
+	hmm10_pred_actual_mapping = {
+		0: 3,
+		1: 7,
+		2: 1,
+		3: 9,
+		4: 5,
+		5: 4,
+		6: 6,
+		7: 2,
+		8: 8,
+		9: 0
+	}
+
+	predictedStates = loadPredictedStatesCSV()
+	centroidMapping = loadDict('hmm10_centroid_mapping.csv')
+
+	plotPredictedStates(predictedStates, centroidMapping, 10)
+
+
+
+
 
 	
 
