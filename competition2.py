@@ -6,6 +6,7 @@ from math import *
 from sklearn.externals import joblib
 import time
 import pickle
+from random import randint
 
 ############
 # PLOTTING #
@@ -435,16 +436,6 @@ if __name__ == '__main__':
 	centroidMapping = loadDict('hmm10_centroid_mapping.csv')
 
 	plotPredictedStates(predictedStates, centroidMapping, 10)
-
-
-
-
-
-	
-
-
-	
-
 
 
 
