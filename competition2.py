@@ -52,19 +52,7 @@ def plotPredictedStates(predictedStates, numStates=10):
 	for i in range(numStates):
 		plt.scatter(xVals[i], yVals[i], color=cmap[i], marker='.')
 
-	plt.show()
-
-# Visualize the clustering on a 2D graph
-# Credit: Special thanks to Ilan Filonenko for this plotting approach
-def visualizeClusters(M, clusters, title="Clustering"):
-	tsne = TSNE(n_components=2, verbose=1, perplexity=40, n_iter=500)
-	tsne_data = tsne.fit_transform(np.squeeze(np.asarray(M)))
-
-	plt.title(title)
-	plt.scatter(tsne_data[:,0], tsne_data[:,1], c=clusters, cmap=plt.cm.get_cmap("jet", 10))
-	plt.colorbar(ticks=range(10))
-	plt.clim(-0.5, 9.5)
-	plt.colorbar()
+	plt.plot([0, 2.5], [2.5, 0], linestyle='solid')
 	plt.show()
 
 #################
@@ -116,15 +104,17 @@ def createLabelsDict():
 
 	return locations
  
-# Create submission file
-def createSubmission(matrix):
-	N = np.zeros((12000, 1))
+# Create submission file using 4000 (x, y) predicted location points
+def createSubmission(predLocations):
+	with open('hmm10_submission.csv', 'wb') as f:
+		f.write('Id,Value\n')
 
-	for i in range(matrix.shape[0]):
-		N[2*i, :] = matrix[i, 0]
-		N[2*i+1, :] = matrix[i, 1]
-
-	np.savetxt('hmm_submission.csv', N, fmt='%f', delimiter=",", header="Id,Label", comments='')
+		for i, (x, y) in enumerate(predLocations):
+			xLine = ','.join([str(i+6001)+'x', str(x-1.5)])
+			yLine = ','.join([str(i+6001)+'y', str(y-1.5)])
+			f.write(xLine + '\n')
+			f.write(yLine + '\n')
+			
 
 #####################
 # LOADING / WRITING #
@@ -154,6 +144,18 @@ def writeLabelSortedCSV():
 
 	print "saving"
 	np.savetxt('../LabelSorted.csv', sortedLabels, fmt=['%i']*2 + ['%f']*2, delimiter=",")
+
+# Write to CSV the 10000 x 1000 predicted states matrix
+def writePredictedStatesCSV():
+	model = joblib.load('hmm10_diag.pkl')
+	predictedStates = getPredictedStates(model)
+	np.savetxt('hmm10_predicted_states.csv', predictedStates, fmt='%i', delimiter=",")
+
+# Load 10000 x 1000 predicted states matrix from CSV
+def loadPredictedStatesCSV():
+	predictedStates = np.genfromtxt("hmm10_predicted_states.csv", delimiter=',')
+
+	return predictedStates
 
 ################
 # CALCULATIONS #
@@ -204,62 +206,43 @@ def calculateAverageStepSize():
 	distances = np.array(distances)
 	return np.mean(distances)
 
-def plotPredictedStates(predictedStates, numStates=8):
+# Get the two centroids for each state 
+def getStateCentroids(predictedStates, mapping, numStates=10):
 	labels = np.genfromtxt("../Label.csv", delimiter=',')
 
-	# Map each state to a distinct RGB color
-
-	# HMM 8
-	cmap = ['#ff1111', '#ff8b11', '#fff311', '#9bff11', '#11ff88', '#11f7ff', '#1160ff', '#7011ff']
-
-	# # HMM 10
-	# cmap = ['#ff1111', '#ff8b11', '#fff311', '#9bff11', '#11ff88', '#11f7ff', '#1160ff', '#7011ff', '#ff11e7', '#ff114c']
-
-	# # HMM 16
-	# cmap = ['#ff1111', '#ff8b11', '#fff311', '#9bff11', '#11ff88', '#11f7ff', '#1160ff', '#7011ff', 
-	# 		'#ff11e7', '#ff114c', '#000000', '#723416', '#0bc68b', '#9003af', '#a5a4a5', '#1a87ba']
-
-	xVals = [[] for _ in range(numStates)]
-	yVals = [[] for _ in range(numStates)]
+	topStateCoords = [[] for _ in range(numStates)]
+	botStateCoords = [[] for _ in range(numStates)]
 	for label in labels:
 		run, step, x, y = label
 		nextState = predictedStates[int(run) - 1, int(step) - 1]
-		xVals[nextState].append(x + 1.5)
-		yVals[nextState].append(y + 1.5)
+		mappedState = mapping[nextState]
+		x, y = x + 1.5, y + 1.5
+
+		# Division line: y = 2.5 - x
+		if y > 2.5 - x: # Above line
+			topStateCoords[mappedState].append((x, y))
+		else: # Below line
+			botStateCoords[mappedState].append((x, y))
+
+	centroidMapping = {}
 
 	for i in range(numStates):
-		plt.scatter(xVals[i], yVals[i], color=cmap[i], marker='.')
+		topCoords = topStateCoords[i]
+		topX = np.mean(np.array([x for x, _ in topCoords]))
+		topY = np.mean(np.array([y for _, y in topCoords]))
 
-	plt.show()
+		botCoords = botStateCoords[i]
+		botX = np.mean(np.array([x for x, _ in botCoords]))
+		botY = np.mean(np.array([y for _, y in botCoords]))
+
+		centroidMapping[i] = [(botX, botY), (topX, topY)]
+
+	return centroidMapping
 
 ##############
 # ALGORITHMS #
 ##############
 
-"""
---- 1102.67181301 seconds --- for k = 4
-
-array([[ 0.17633803,  0.3059155 ,  0.32      ,  0.19774648],
-       [ 0.17445874,  0.32538437,  0.32099153,  0.17916536],
-       [ 0.18196253,  0.31216259,  0.31343284,  0.19244204],
-       [ 0.17637712,  0.32997881,  0.3029661 ,  0.19067797]])
-
---- 2073.54278898 seconds --- for k = 9
-
-array([[ 0.14115011,  0.06049291,  0.06497386,  0.10978342,  0.12994772, 0.1120239 ,  0.10828977,  0.1523525 ,  0.12098581],
-       [ 0.13137558,  0.08037094,  0.08964451,  0.10973725,  0.10973725, 0.12055642,  0.08655332,  0.15919629,  0.11282844],
-       [ 0.13654096,  0.06892068,  0.08062419,  0.11183355,  0.12093628, 0.12093628,  0.11053316,  0.11313394,  0.13654096],
-       [ 0.1332737 ,  0.06171735,  0.09123435,  0.10107335,  0.10822898, 0.12701252,  0.10733453,  0.14669052,  0.1234347 ],
-       [ 0.14659686,  0.05235602,  0.07068063,  0.10471204,  0.12216405, 0.13176265,  0.11256544,  0.14397906,  0.11518325],
-       [ 0.12286159,  0.06531882,  0.06376361,  0.12130638,  0.11197512, 0.13297045,  0.12130638,  0.15241058,  0.10808709],
-       [ 0.12383613,  0.0689013 ,  0.08007449,  0.12011173,  0.10707635, 0.1471136 ,  0.10242086,  0.12383613,  0.12662942],
-       [ 0.1277193 ,  0.06596491,  0.08350877,  0.11438596,  0.11649123, 0.12842105,  0.0954386 ,  0.1445614 ,  0.12350877],
-       [ 0.14142259,  0.06694561,  0.07698745,  0.11129707,  0.10209205, 0.13472803,  0.11464435,  0.13974895,  0.11213389]])
-
-for k = 16
-
-for k = 20
-"""
 # Run HMM with given k components and covariance type
 # Also saves a pickle for future use
 def runHMM(k, cov_type='diag'):
@@ -331,49 +314,36 @@ def run():
 	# print x, y
 	# # linearRegression()
 
+# Get whether the last 4000 points are increasing or decreasing states
+def getLast4000Direction(predictedStates, mapping):
+	last4000last5 = np.zeros((4000, 5))
+	last4000last5 = predictedStates[6000:,-5:]
+
+	for i in range(last4000last5.shape[0]):
+		for j in range(last4000last5.shape[1]):
+			last4000last5[i, j] = hmm10_pred_actual_mapping[last4000last5[i, j]]
+
+	directions = [] # -1 for decreasing, 1 for increasing
+	for last5 in last4000last5:
+		directionFound = False
+		for i in range(len(last5) - 1, 0, -1):
+			if directionFound: continue
+
+			prev, curr = last5[i-1], last5[i]
+			if prev < curr:
+				directions.append(1)
+				directionFound = True
+			elif prev > curr:
+				directions.append(-1)
+				directionFound = True
+
+		if not directionFound:
+			directions.append(1)
+
+	return directions
+
 if __name__ == '__main__':
 	np.set_printoptions(threshold=np.nan)
-
-	# predDict = {} # Prediction -> [Run # ...]
-
-	# for idx, pred in enumerate(predictions):
-	# 	run = idx + 1
-	# 	predDict.setdefault(pred, []).append(run)
-
-
-	# labelsDict = loadDict('labels_dict.pkl')
-
-
-	# plotStates(predictions)
-
-	# d = {}
-	# predRunsDict = {}
-	# for idx, pred in enumerate(predictions[:6000]):
-	# 	run = idx + 1
-	# 	steps = labelsDict[run]
-	# 	d.setdefault(pred, []).append(steps)
-	# 	predRunsDict.setdefault(pred, []).append(run)
-
-	# # finalLabels = []
-	# predDict = {}
-
-	# for run, vals in labelsDict.items():
-	# 	step, (x, y), angle = vals[-1]
-	# 	if step == 1000:
-	# 		pred = predictions[run-1]
-	# 		# finalLabels.append((run, step, (x, y), angle))
-	# 		predDict.setdefault(pred, []).append((run, step, (x, y), angle))
-
-
-	# coords = []
-	# for _, vals in labelsDict.items():
-	# 	newVals = [(x, y) for step, (x, y), angle in vals if 200 <= step <= 205]
-	# 	coords.extend(newVals)
-
-	# xs = [x for x, _ in coords]
-	# ys = [y for _, y in coords]
-	# plt.plot(xs, ys, 'ro')
-	# plt.show()
 
 	hmm10_pred_actual_mapping = {
 		0: 3,
@@ -388,32 +358,20 @@ if __name__ == '__main__':
 		9: 0
 	}
 
-	model = joblib.load('hmm10_diag.pkl')
-	predictedStates = getPredictedStates(model)
-	last4000last5 = np.zeros((4000, 5))
-	last4000last5 = predictedStates[6000:,-5:]
-	toporbot = np.zeros((4000, 1))
+	predictedStates = loadPredictedStatesCSV()
+	centroidMapping = loadDict('hmm10_centroid_mapping.csv')
 
-	for i in range(last4000last5.shape[0]):
-		for j in range(last4000last5.shape[1]):
-			last4000last5[i, j] = hmm10_pred_actual_mapping[last4000last5[i, j]]
+	last4000Direction = getLast4000Direction(predictedStates, hmm10_pred_actual_mapping)
+	last4000States = predictedStates[6000:,-1]
 
-	for i in range(last4000last5.shape[0]):
-		for j in range(last4000last5.shape[1]-1, last4000last5.shape[1]-5, -1):
-			if last4000last5[i, j] == last4000last5[i, j-1]:
-				continue
-			else:
-				if last4000last5[i, j] - last4000last5[i, j-1] >= 1:
-					toporbot[i,:] = 1
-					break
-				elif last4000last5[i, j] - last4000last5[i, j-1] <= -1:
-					toporbot[i,:] = 0
-					break
+	predLocations = []
+	for state, direction in zip(last4000States, last4000Direction):
+		botCoord, topCoord = centroidMapping[state]
+		predLocation = topCoord if direction == 1 else botCoord
+		predLocations.append(predLocation)
 
-	print last4000last5
-	print toporbot
+	createSubmission(predLocations)
 
-	# plotPredictedStates(predictedStates)
 
 
 
