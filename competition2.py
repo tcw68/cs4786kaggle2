@@ -62,7 +62,10 @@ def plotPredictedStates(predictedStates, centroidMapping=None, numStates=10):
 
 		plt.plot(xCentroids, yCentroids, 'wo')
 
-	plt.plot([0, 2.5], [2.5, 0], linestyle='solid') 
+	plt.plot([0.54835999999999996, 0.72145000000000004], [1.105, 1.4535180000000001], linestyle='solid')
+	plt.plot([1.1239399999999999, 1.29097], [2.2643399999999998, 2.6010999999999997], linestyle='solid')
+
+	# plt.plot([0, 2.5], [2.5, 0], linestyle='solid') 
 	plt.show()
 
 #################
@@ -429,6 +432,39 @@ def graph(formula, x_range):
     plt.plot(x, y)  
     # plt.show()
 
+# labelledAngles is dictionary of key = angle and value = (run, step, (x, y))
+# minMaxAngles is dictionary of key = angle and value = 4 coordinates
+def getLabelledAngles():
+	labelsDict = createLabelsDict()
+
+	labelledAngles = {}
+	for run, vals in labelsDict.items():
+		for step, (x, y), angle in vals:
+			labelledAngles.setdefault(angle, []).append((run, step, (x,y)))
+
+	minMaxAngles = {}
+	for angle, vals in labelledAngles.items():
+		botMinX, botMinY = float('inf'), float('inf')
+		botMaxX, botMaxY = float('-inf'), float('-inf')
+		topMinX, topMinY = float('inf'), float('inf')
+		topMaxX, topMaxY = float('-inf'), float('-inf')
+
+		for run, step, (x, y) in vals:
+			if y > 2.5 - x: # Above line
+				if x <= topMinX and y <= topMinY:
+					topMinX, topMinY = x, y
+				if x >= topMaxX and y >= topMaxY:
+					topMaxX, topMaxY = x, y
+			else: # Below line
+				if x <= botMinX and y <= botMinY:
+					botMinX, botMinY = x, y
+				if x >= botMaxX and y >= botMaxY:
+					botMaxX, botMaxY = x, y
+
+		minMaxAngles[angle] = [(botMinX, botMinY), (botMaxX, botMaxY), (topMinX, topMinY), (topMaxX, topMaxY)]
+
+	return (labelledAngles, minMaxAngles)
+
 if __name__ == '__main__':
 	np.set_printoptions(threshold=np.nan)
 
@@ -442,21 +478,19 @@ if __name__ == '__main__':
 
 	"""
 
-	hmm10_pred_actual_mapping = {
-		0: 3,
-		1: 7,
-		2: 1,
-		3: 9,
-		4: 5,
-		5: 4,
-		6: 6,
-		7: 2,
-		8: 8,
-		9: 0
-	}
+	labelledAngles, minMaxAngles = getLabelledAngles()
 
-	predictedStates = loadPredictedStatesCSV(10)
-	centroidMapping = loadDict('hmm10_centroid_mapping.csv')
+
+
+
+
+
+
+	
+
+
+
+
 
 
 
