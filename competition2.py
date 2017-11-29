@@ -60,7 +60,7 @@ def plotPredictedStates(predictedStates, centroidMapping=None, numStates=10):
 			xCentroids.extend([botX, topX])
 			yCentroids.extend([botY, topY])
 
-	plt.plot(xCentroids, yCentroids, 'wo')
+		plt.plot(xCentroids, yCentroids, 'wo')
 
 	plt.plot([0, 2.5], [2.5, 0], linestyle='solid') 
 	plt.show()
@@ -423,8 +423,24 @@ def hmm16():
 
 	createSubmission(predLocations, 16)
 
+def graph(formula, x_range):  
+    x = np.array(x_range)  
+    y = eval(formula)
+    plt.plot(x, y)  
+    # plt.show()
+
 if __name__ == '__main__':
 	np.set_printoptions(threshold=np.nan)
+
+	"""
+	First column of observations matrix
+	- Angle after first step
+
+	Average angle: 0.83614049900000009
+	Min angle: 0.75205999999999995
+	Max angle: 0.93271000000000004
+
+	"""
 
 	hmm10_pred_actual_mapping = {
 		0: 3,
@@ -439,10 +455,9 @@ if __name__ == '__main__':
 		9: 0
 	}
 
-	predictedStates = loadPredictedStatesCSV()
+	predictedStates = loadPredictedStatesCSV(10)
 	centroidMapping = loadDict('hmm10_centroid_mapping.csv')
 
-	plotPredictedStates(predictedStates, centroidMapping, 10)
 
 
 
