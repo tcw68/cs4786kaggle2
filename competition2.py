@@ -31,11 +31,14 @@ def plotBotMovement():
 	plt.show()
 
 # Plot the states that the labels are assigned to
+# Currently supports up to HMM 16
 def plotPredictedStates(predictedStates, numStates=10):
 	labels = np.genfromtxt("../Label.csv", delimiter=',')
 
 	# Map each state to a distinct RGB color
-	cmap = ['#ff1111', '#ff8b11', '#fff311', '#9bff11', '#11ff88', '#11f7ff', '#1160ff', '#7011ff', '#ff11e7', '#ff114c']
+	cmap = ['#ff1111', '#ff8b11', '#fff311', '#9bff11', '#11ff88', '#11f7ff', '#1160ff', '#7011ff', 
+			'#ff11e7', '#ff114c', '#000000', '#723416', '#0bc68b', '#9003af', '#a5a4a5', '#1a87ba']
+	cmap = cmap[:numStates]
 
 	xVals = [[] for _ in range(numStates)]
 	yVals = [[] for _ in range(numStates)]
@@ -200,6 +203,34 @@ def calculateAverageStepSize():
 	distances = np.array(distances)
 	return np.mean(distances)
 
+def plotPredictedStates(predictedStates, numStates=8):
+	labels = np.genfromtxt("../Label.csv", delimiter=',')
+
+	# Map each state to a distinct RGB color
+
+	# HMM 8
+	cmap = ['#ff1111', '#ff8b11', '#fff311', '#9bff11', '#11ff88', '#11f7ff', '#1160ff', '#7011ff']
+
+	# # HMM 10
+	# cmap = ['#ff1111', '#ff8b11', '#fff311', '#9bff11', '#11ff88', '#11f7ff', '#1160ff', '#7011ff', '#ff11e7', '#ff114c']
+
+	# # HMM 16
+	# cmap = ['#ff1111', '#ff8b11', '#fff311', '#9bff11', '#11ff88', '#11f7ff', '#1160ff', '#7011ff', 
+	# 		'#ff11e7', '#ff114c', '#000000', '#723416', '#0bc68b', '#9003af', '#a5a4a5', '#1a87ba']
+
+	xVals = [[] for _ in range(numStates)]
+	yVals = [[] for _ in range(numStates)]
+	for label in labels:
+		run, step, x, y = label
+		nextState = predictedStates[int(run) - 1, int(step) - 1]
+		xVals[nextState].append(x + 1.5)
+		yVals[nextState].append(y + 1.5)
+
+	for i in range(numStates):
+		plt.scatter(xVals[i], yVals[i], color=cmap[i], marker='.')
+
+	plt.show()
+
 ##############
 # ALGORITHMS #
 ##############
@@ -264,10 +295,6 @@ if __name__ == '__main__':
 
 
 	# labelsDict = loadDict('labels_dict.pkl')
-	model = joblib.load('hmm10_diag.pkl')
-	predictedStates = getPredictedStates(model)
-	plotPredictedStates(predictedStates)
-
 
 	# plotStates(predictions)
 
@@ -278,9 +305,6 @@ if __name__ == '__main__':
 	# 	steps = labelsDict[run]
 	# 	d.setdefault(pred, []).append(steps)
 	# 	predRunsDict.setdefault(pred, []).append(run)
-
-
-
 
 	# # finalLabels = []
 	# predDict = {}
@@ -302,6 +326,25 @@ if __name__ == '__main__':
 	# ys = [y for _, y in coords]
 	# plt.plot(xs, ys, 'ro')
 	# plt.show()
+
+	hmm10_pred_actual_mapping = {
+		1: 4,
+		2: 8,
+		3: 2,
+		4: 10,
+		5: 6,
+		6: 5,
+		7: 7,
+		8: 3,
+		9: 9,
+		10: 1
+	}
+
+	model = joblib.load('hmm10_diag.pkl')
+	predictedStates = getPredictedStates(model)
+	# plotPredictedStates(predictedStates)
+
+
 
 
 
