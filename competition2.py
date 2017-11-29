@@ -204,6 +204,8 @@ def calculateMinMaxXY():
 
 # Use consecutive steps in runs to calculate average bot step size
 # Avg step size = 0.15356177070436083
+# Min step size = 0.00150479234448
+# Max step size = 0.613946069316
 def calculateAverageStepSize():
 	sortedLabels = np.genfromtxt("../LabelSorted.csv", delimiter=',')
 	distances = []
@@ -214,6 +216,11 @@ def calculateAverageStepSize():
 				distances.append(np.linalg.norm(sortedLabels[i-1,2:]-sortedLabels[i,2:]))
 
 	distances = np.array(distances)
+
+	# Plot bar graph
+	# plt.hist(distances, normed=True, bins=20)
+	# plt.show()
+
 	return np.mean(distances)
 
 # Get the two centroids for each state 
