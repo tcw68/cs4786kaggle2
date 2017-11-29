@@ -68,6 +68,13 @@ def plotPredictedStates(predictedStates, centroidMapping=None, numStates=10):
 	# plt.plot([0, 2.5], [2.5, 0], linestyle='solid') 
 	plt.show()
 
+# Plot the distribution of observed angles
+def plotObservedAngleDistribution():
+	OM = createObservationMatrix()
+	angles = OM.flatten().reshape(-1, 1)
+	plt.hist(angles, normed=False, bins=50)
+	plt.show()
+
 #################
 # PREPROCESSING #
 #################
@@ -225,6 +232,29 @@ def calculateAverageStepSize():
 	# plt.show()
 
 	return np.mean(distances)
+
+# Calculate the average angle difference between consecutive angles
+# Avg angle diff = 0.050048676122122118
+def calculateAverageAngleDiff():
+	OM = createObservationMatrix()
+
+	avgAngleDiffs = []
+	for row in OM:
+		angleDiffs = []
+		for i in range(1, row.shape[0]):
+			angleDiff = abs(row[i] - row[i-1])
+			angleDiffs.append(angleDiff)
+
+		angleDiffs = np.array(angleDiffs)
+		avgAngleDiffs.append(np.mean(angleDiffs))
+
+	avgAngleDiffs = np.array(avgAngleDiffs)
+
+	# Plot bar graph
+	# plt.hist(distances, normed=True, bins=20)
+	# plt.show()
+
+	return np.mean(avgAngleDiffs)
 
 # Get the two centroids for each state 
 def getStateCentroids(predictedStates, mapping, numStates=10):
@@ -478,7 +508,8 @@ if __name__ == '__main__':
 
 	"""
 
-	labelledAngles, minMaxAngles = getLabelledAngles()
+
+
 
 
 
