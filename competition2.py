@@ -36,13 +36,9 @@ def plotPredictedStates(predictedStates, numStates=10):
 	labels = np.genfromtxt("../Label.csv", delimiter=',')
 
 	# Map each state to a distinct RGB color
-<<<<<<< HEAD
-	cmap = ['#ff1111', '#ff8b11', '#fff311', '#9bff11', '#11ff88', '#11f7ff', '#1160ff', '#7011ff', '#ff11e7', '#ff114c']
-=======
 	cmap = ['#ff1111', '#ff8b11', '#fff311', '#9bff11', '#11ff88', '#11f7ff', '#1160ff', '#7011ff', 
 			'#ff11e7', '#ff114c', '#000000', '#723416', '#0bc68b', '#9003af', '#a5a4a5', '#1a87ba']
 	cmap = cmap[:numStates]
->>>>>>> 22adb5d6f7db2e7aa5a705f87613ec52f4e0c44c
 
 	xVals = [[] for _ in range(numStates)]
 	yVals = [[] for _ in range(numStates)]
@@ -379,16 +375,16 @@ if __name__ == '__main__':
 	# plt.show()
 
 	hmm10_pred_actual_mapping = {
-		1: 4,
-		2: 8,
-		3: 2,
-		4: 10,
-		5: 6,
-		6: 5,
-		7: 7,
-		8: 3,
-		9: 9,
-		10: 1
+		0: 4,
+		1: 8,
+		2: 2,
+		3: 10,
+		4: 6,
+		5: 5,
+		6: 7,
+		7: 3,
+		8: 9,
+		9: 1
 	}
 
 	model = joblib.load('hmm10_diag.pkl')
@@ -396,6 +392,13 @@ if __name__ == '__main__':
 	last4000last5 = np.zeros((4000, 5))
 	last4000last5 = predictedStates[6000:,-5:]
 	print last4000last5
+
+	for i in range(last4000last5.shape[0]):
+		for j in range(last4000last5.shape[1]):
+			last4000last5[i, j] = hmm10_pred_actual_mapping[last4000last5[i, j]]
+
+	print last4000last5
+
 	# plotPredictedStates(predictedStates)
 
 
