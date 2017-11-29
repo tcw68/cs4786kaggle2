@@ -51,6 +51,7 @@ def plotPredictedStates(predictedStates, numStates=10):
 	for i in range(numStates):
 		plt.scatter(xVals[i], yVals[i], color=cmap[i], marker='.')
 
+	plt.plot([0, 2.5], [2.5, 0], linestyle='solid')
 	plt.show()
 
 # Visualize the clustering on a 2D graph
@@ -154,6 +155,18 @@ def writeLabelSortedCSV():
 	print "saving"
 	np.savetxt('../LabelSorted.csv', sortedLabels, fmt=['%i']*2 + ['%f']*2, delimiter=",")
 
+# Write to CSV the 10000 x 1000 predicted states matrix
+def writePredictedStatesCSV():
+	model = joblib.load('hmm10_diag.pkl')
+	predictedStates = getPredictedStates(model)
+	np.savetxt('hmm10_predicted_states.csv', predictedStates, fmt='%i', delimiter=",")
+
+# Load 10000 x 1000 predicted states matrix from CSV
+def loadPredictedStatesCSV():
+	predictedStates = np.genfromtxt("hmm10_predicted_states.csv", delimiter=',')
+
+	return predictedStates
+
 ################
 # CALCULATIONS #
 ################
@@ -203,33 +216,38 @@ def calculateAverageStepSize():
 	distances = np.array(distances)
 	return np.mean(distances)
 
-def plotPredictedStates(predictedStates, numStates=8):
+# Get the two centroids for each state 
+def getStateCentroids(predictedStates, mapping, numStates=10):
 	labels = np.genfromtxt("../Label.csv", delimiter=',')
 
-	# Map each state to a distinct RGB color
-
-	# HMM 8
-	cmap = ['#ff1111', '#ff8b11', '#fff311', '#9bff11', '#11ff88', '#11f7ff', '#1160ff', '#7011ff']
-
-	# # HMM 10
-	# cmap = ['#ff1111', '#ff8b11', '#fff311', '#9bff11', '#11ff88', '#11f7ff', '#1160ff', '#7011ff', '#ff11e7', '#ff114c']
-
-	# # HMM 16
-	# cmap = ['#ff1111', '#ff8b11', '#fff311', '#9bff11', '#11ff88', '#11f7ff', '#1160ff', '#7011ff', 
-	# 		'#ff11e7', '#ff114c', '#000000', '#723416', '#0bc68b', '#9003af', '#a5a4a5', '#1a87ba']
-
-	xVals = [[] for _ in range(numStates)]
-	yVals = [[] for _ in range(numStates)]
+	topStateCoords = [[] for _ in range(numStates)]
+	botStateCoords = [[] for _ in range(numStates)]
 	for label in labels:
 		run, step, x, y = label
 		nextState = predictedStates[int(run) - 1, int(step) - 1]
-		xVals[nextState].append(x + 1.5)
-		yVals[nextState].append(y + 1.5)
+		mappedState = mapping[nextState]
+		x, y = x + 1.5, y + 1.5
+
+		# Division line: y = 2.5 - x
+		if y > 2.5 - x: # Above line
+			topStateCoords[mappedState].append((x, y))
+		else: # Below line
+			botStateCoords[mappedState].append((x, y))
+
+	centroidMapping = {}
 
 	for i in range(numStates):
-		plt.scatter(xVals[i], yVals[i], color=cmap[i], marker='.')
+		topCoords = topStateCoords[i]
+		topX = np.mean(np.array([x for x, _ in topCoords]))
+		topY = np.mean(np.array([y for _, y in topCoords]))
 
-	plt.show()
+		botCoords = botStateCoords[i]
+		botX = np.mean(np.array([x for x, _ in botCoords]))
+		botY = np.mean(np.array([y for _, y in botCoords]))
+
+		centroidMapping[i] = [(botX, botY), (topX, topY)]
+
+	return centroidMapping
 
 ##############
 # ALGORITHMS #
@@ -287,62 +305,22 @@ def getPredictedStates(model):
 if __name__ == '__main__':
 	np.set_printoptions(threshold=np.nan)
 
-	# predDict = {} # Prediction -> [Run # ...]
-
-	# for idx, pred in enumerate(predictions):
-	# 	run = idx + 1
-	# 	predDict.setdefault(pred, []).append(run)
-
-
-	# labelsDict = loadDict('labels_dict.pkl')
-
-	# plotStates(predictions)
-
-	# d = {}
-	# predRunsDict = {}
-	# for idx, pred in enumerate(predictions[:6000]):
-	# 	run = idx + 1
-	# 	steps = labelsDict[run]
-	# 	d.setdefault(pred, []).append(steps)
-	# 	predRunsDict.setdefault(pred, []).append(run)
-
-	# # finalLabels = []
-	# predDict = {}
-
-	# for run, vals in labelsDict.items():
-	# 	step, (x, y), angle = vals[-1]
-	# 	if step == 1000:
-	# 		pred = predictions[run-1]
-	# 		# finalLabels.append((run, step, (x, y), angle))
-	# 		predDict.setdefault(pred, []).append((run, step, (x, y), angle))
-
-
-	# coords = []
-	# for _, vals in labelsDict.items():
-	# 	newVals = [(x, y) for step, (x, y), angle in vals if 200 <= step <= 205]
-	# 	coords.extend(newVals)
-
-	# xs = [x for x, _ in coords]
-	# ys = [y for _, y in coords]
-	# plt.plot(xs, ys, 'ro')
-	# plt.show()
-
 	hmm10_pred_actual_mapping = {
-		1: 4,
-		2: 8,
-		3: 2,
-		4: 10,
-		5: 6,
-		6: 5,
-		7: 7,
-		8: 3,
-		9: 9,
-		10: 1
+		0: 3,
+		1: 7,
+		2: 1,
+		3: 9,
+		4: 5,
+		5: 4,
+		6: 6,
+		7: 2,
+		8: 8,
+		9: 0
 	}
 
-	model = joblib.load('hmm10_diag.pkl')
-	predictedStates = getPredictedStates(model)
-	# plotPredictedStates(predictedStates)
+	predictedStates = loadPredictedStatesCSV()
+	centroidMapping = loadDict('hmm10_centroid_mapping.csv')
+
 
 
 
