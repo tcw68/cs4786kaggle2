@@ -6,6 +6,7 @@ from math import *
 from sklearn.externals import joblib
 import time
 import pickle
+from random import randint
 
 ############
 # PLOTTING #
@@ -375,29 +376,42 @@ if __name__ == '__main__':
 	# plt.show()
 
 	hmm10_pred_actual_mapping = {
-		0: 4,
-		1: 8,
-		2: 2,
-		3: 10,
-		4: 6,
-		5: 5,
-		6: 7,
-		7: 3,
-		8: 9,
-		9: 1
+		0: 3,
+		1: 7,
+		2: 1,
+		3: 9,
+		4: 5,
+		5: 4,
+		6: 6,
+		7: 2,
+		8: 8,
+		9: 0
 	}
 
 	model = joblib.load('hmm10_diag.pkl')
 	predictedStates = getPredictedStates(model)
 	last4000last5 = np.zeros((4000, 5))
 	last4000last5 = predictedStates[6000:,-5:]
-	print last4000last5
+	toporbot = np.zeros((4000, 1))
 
 	for i in range(last4000last5.shape[0]):
 		for j in range(last4000last5.shape[1]):
 			last4000last5[i, j] = hmm10_pred_actual_mapping[last4000last5[i, j]]
 
+	for i in range(last4000last5.shape[0]):
+		for j in range(last4000last5.shape[1]-1, last4000last5.shape[1]-5, -1):
+			if last4000last5[i, j] == last4000last5[i, j-1]:
+				continue
+			else:
+				if last4000last5[i, j] - last4000last5[i, j-1] >= 1:
+					toporbot[i,:] = 1
+					break
+				elif last4000last5[i, j] - last4000last5[i, j-1] <= -1:
+					toporbot[i,:] = 0
+					break
+
 	print last4000last5
+	print toporbot
 
 	# plotPredictedStates(predictedStates)
 
