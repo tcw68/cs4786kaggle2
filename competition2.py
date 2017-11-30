@@ -192,7 +192,7 @@ def createLabelsDict():
 
 # Create submission file using 4000 (x, y) predicted location points
 def createSubmission(predLocations, k):
-	with open('hmm%i_submission_f.csv' % k, 'wb') as f:
+	with open('hmm%i_submission_t.csv' % k, 'wb') as f:
 		f.write('Id,Value\n')
 
 		for i, (x, y) in enumerate(predLocations):
@@ -672,7 +672,7 @@ def newHmm16():
 	observations = np.genfromtxt("../Observations.csv", delimiter = ',')
 	last4000Angles = observations[6000:,-1]
 
-	anglesMapping = loadDict('../angle_mapping.csv')
+	anglesMapping = loadDict('./angle_mapping.csv')
 	angles = sorted(list(anglesMapping.keys()))
 
 	predLocations = []
@@ -718,9 +718,9 @@ def betterHmm16():
 
 	last4000Direction = getLast4000Direction(predictedStates, hmm16_pred_actual_mapping)
 
-	# predicted4000Angles = linearRegression()
-	predicted4000Angles = getPredictedAngles()
-	anglesMapping = loadDict('../angle_mapping.csv')
+	predicted4000Angles = linearRegression()
+	# predicted4000Angles = getPredictedAngles() # TODO: THIS GIVES AND ERROR
+	anglesMapping = loadDict('./angle_mapping.csv')
 
 	predLocations = []
 	for angle, direction in zip(predicted4000Angles, last4000Direction):
@@ -925,6 +925,7 @@ if __name__ == '__main__':
 
 	# predictedAngles = getPredictedAngles()
 	# predictedAngles = loadDict('predicted_angles.pkl')
+	betterHmm16()
 
 
 
