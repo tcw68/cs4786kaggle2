@@ -570,7 +570,7 @@ def findPeaksValleys(angles):
 	return (peaks, valleys)
 
 # Given the angle, predict the x, y location
-def predictLocation():
+def predictLocation(angle):
 	pass
 
 # Return a RMSE score given 10000 x 1000 predictions
@@ -674,16 +674,27 @@ def plotAnglesAtRun(run):
 
 	plt.show()
 
+# Get a 10000 x 1 array of the 1001th predicted angles
+def getPredictedAngles():
+	OM = createObservationMatrix()
+	predAngles = []
+	for angles in OM:
+		peaks, valleys = findPeaksValleys(angles)
+		amplitude, period, hShift, vShift = getGuessParameters(peaks, valleys)
+		fit_amplitude, fit_period, fit_hShift, fit_vShift = getFittedParameters(angles, amplitude, period, hShift, vShift)
+		predAngle = fit_amplitude * np.sin(fit_period * (1001 + fit_hShift)) + fit_vShift
+		predAngles.append(predAngle)
+
+	return predAngles
+
 if __name__ == '__main__':
 	np.set_printoptions(threshold=np.nan)
 
-	OM = createObservationMatrix()
-	angles = OM[run-1]
+	# predictedAngles = getPredictedAngles()
+	predictedAngles = loadDict('predicted_angles.pkl')
 
-	peaks, valleys = findPeaksValleys(angles)
-	amplitude, period, hShift, vShift = getGuessParameters(peaks, valleys)
-	fit_amplitude, fit_period, fit_hShift, fit_vShift = getFittedParameters(angles, amplitude, period, hShift, vShift)
-	
+
+
 
 
 
