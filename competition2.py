@@ -32,13 +32,17 @@ def plotBotMovement():
 	plt.show()
 
 # Plot the states that the labels are assigned to
-# Currently supports up to HMM 16
+# Currently supports up to HMM 25
 def plotPredictedStates(predictedStates, centroidMapping=None, numStates=10):
 	labels = np.genfromtxt("../Label.csv", delimiter=',')
 
 	# Map each state to a distinct RGB color
-	cmap = ['#ff1111', '#ff8b11', '#fff311', '#9bff11', '#11ff88', '#11f7ff', '#1160ff', '#7011ff', 
-			'#ff11e7', '#ff114c', '#000000', '#723416', '#0bc68b', '#9003af', '#a5a4a5', '#1a87ba']
+	cmap = ['#ff1111', '#ff8b11', '#fff311', '#9bff11', '#11ff88', 
+			'#11f7ff', '#1160ff', '#7011ff', '#ff11e7', '#ff114c', 
+			'#000000', '#723416', '#0bc68b', '#9003af', '#a5a4a5', 
+			'#1a87ba', '#a64c79', '#8a9fc6', '#d0e596', '#036f4b', 
+			'#fe98b2', '#ccbaa9', '#708965', '#47574d', '#ffc300']
+
 	cmap = cmap[:numStates]
 
 	xVals = [[] for _ in range(numStates)]
@@ -62,13 +66,19 @@ def plotPredictedStates(predictedStates, centroidMapping=None, numStates=10):
 
 		plt.plot(xCentroids, yCentroids, 'wo')
 
-	plt.plot([0.54835999999999996, 0.72145000000000004], [1.105, 1.4535180000000001], linestyle='solid')
-	plt.plot([1.1239399999999999, 1.29097], [2.2643399999999998, 2.6010999999999997], linestyle='solid')
+	plt.plot([0, 2.5], [2.5, 0], linestyle='solid') 
+	plt.show()
 
-	# plt.plot([0, 2.5], [2.5, 0], linestyle='solid') 
+# Plot angles at all steps for run i (starting at 1)
+def plotAnglesAtRun(i):
+	OM = createObservationMatrix()
+	run = OM[i-1]
+	plt.plot(run)
 	plt.show()
 
 # Plot the distribution of observed angles
+# Min angle = 0.12031 ~ 6.893255233 degrees
+# Max angle = 1.4424 ~ 82.6434324 degrees
 def plotObservedAngleDistribution():
 	OM = createObservationMatrix()
 	angles = OM.flatten().reshape(-1, 1)
@@ -235,23 +245,36 @@ def calculateAverageStepSize():
 
 # Calculate the average angle difference between consecutive angles
 # Avg angle diff = 0.050048676122122118
+# Min angle diff = 0.0
+# Max angle diff = 0.4062
 def calculateAverageAngleDiff():
 	OM = createObservationMatrix()
 
 	avgAngleDiffs = []
+	minAngleDiff = float('inf')
+	maxAngleDiff = float('-inf')
+	totalAngleDiffs = []
 	for row in OM:
 		angleDiffs = []
 		for i in range(1, row.shape[0]):
 			angleDiff = abs(row[i] - row[i-1])
 			angleDiffs.append(angleDiff)
 
+			minAngleDiff = min(minAngleDiff, angleDiff)
+			maxAngleDiff = max(maxAngleDiff, angleDiff)
+			totalAngleDiffs.append(angleDiff)
+
 		angleDiffs = np.array(angleDiffs)
 		avgAngleDiffs.append(np.mean(angleDiffs))
 
 	avgAngleDiffs = np.array(avgAngleDiffs)
 
+	print "Min angle diff: ", minAngleDiff
+	print "Max angle diff: ", maxAngleDiff
+	print "Total angle diff: ", totalAngleDiffs
+
 	# Plot bar graph
-	# plt.hist(distances, normed=True, bins=20)
+	# plt.hist(avgAngleDiffs, normed=True, bins=20)
 	# plt.show()
 
 	return np.mean(avgAngleDiffs)
@@ -313,7 +336,8 @@ def runHMM(k, cov_type='diag'):
 def getPredictedStates(model):
 	observations = np.genfromtxt("../Observations.csv", delimiter = ',')
 	X = observations.flatten().reshape(-1, 1)
-	predictedStates = model.predict(X)
+	lengths = [1000] * 10000
+	predictedStates = model.predict(X, lengths)
 
 	return np.reshape(predictedStates, (10000,1000))
 
@@ -408,7 +432,7 @@ def hmm10():
 	}
 
 	predictedStates = loadPredictedStatesCSV()
-	centroidMapping = loadDict('hmm10_centroid_mapping.csv')
+	centroidMapping = loadDict('hmm10_centroid_mapping.pkl')
 
 	last4000Direction = getLast4000Direction(predictedStates, hmm10_pred_actual_mapping)
 	last4000States = predictedStates[6000:,-1]
@@ -443,7 +467,7 @@ def hmm16():
 	}
 
 	predictedStates = loadPredictedStatesCSV(16)
-	centroidMapping = loadDict('hmm16_centroid_mapping.csv')
+	centroidMapping = loadDict('hmm16_centroid_mapping.pkl')
 
 	last4000Direction = getLast4000Direction(predictedStates, hmm16_pred_actual_mapping)
 	last4000States = predictedStates[6000:,-1]
@@ -507,7 +531,6 @@ if __name__ == '__main__':
 	Max angle: 0.93271000000000004
 
 	"""
-
 
 
 
