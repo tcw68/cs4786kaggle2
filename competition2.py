@@ -919,6 +919,23 @@ def getPredictedAngles():
 
 	return predAngles
 
+# Returns dictionary with key as angle and value as {bot: [], top: []}, holding
+# arrays of labeled locations on that angle
+def mapAnglesToLocations():
+	observations = np.genfromtxt("../Observations.csv", delimiter = ',')
+	labels = np.genfromtxt("../Label.csv", delimiter=',')
+
+	angleMapping = {}
+	for label in labels:
+		run, step, x, y = label
+		x, y = x + 1.5, y + 1.5
+		angle = observations[run-1, step-1]
+		section =  'top' if (y > 2.5 - x) else 'bot'
+		angleMapping.setdefault(angle, {'bot': [], 'top': []})[section].append((x,y))
+
+	# writeDict(angleMapping, './angle_mapping.csv')
+	return angleMapping
+
 if __name__ == '__main__':
 	np.set_printoptions(threshold=np.nan)
 	# run()
