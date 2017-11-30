@@ -717,32 +717,14 @@ def betterHmm16():
 	predictedStates = loadPredictedStatesCSV(16)
 
 	last4000Direction = getLast4000Direction(predictedStates, hmm16_pred_actual_mapping)
-	# observations = np.genfromtxt("../Observations.csv", delimiter = ',')
-	# last4000Angles = observations[6000:,-1]
 
-	predicted4000Angles = linearRegression()
+	# predicted4000Angles = linearRegression()
+	predicted4000Angles = getPredictedAngles()
 	anglesMapping = loadDict('../angle_mapping.csv')
-	angles = sorted(list(anglesMapping.keys()))
 
 	predLocations = []
-	angleBuffer = 0.025
 	for angle, direction in zip(predicted4000Angles, last4000Direction):
-		angleRange = (angle - angleBuffer, angle + angleBuffer)
-		points = []
-		for a in angles:
-			if a >= angleRange[0] and a <= angleRange[1]:
-				section = 'top' if direction == 1 else 'bot'
-				points += anglesMapping[a][section]
-
-		x_c = np.mean(np.array([x for x, _ in points]))
-		y_c = np.mean(np.array([y for _, y in points]))
-
-		# Project onto line y = tan(angle) * x
-		c = y_c + x_c * tan(angle)
-		x_p = c / (tan(angle) + a / tan(angle))
-		y_p = tan(angle) * x_p
-
-		predLocations.append((x_p, y_p))
+		predLoc = predictLocation(angle, direction, anglesMapping)
 
 	createSubmission(predLocations, 16)
 
@@ -799,9 +781,27 @@ def findPeaksValleys(angles):
 
 	return (peaks, valleys)
 
-# Given the angle, predict the x, y location
-def predictLocation(angle):
-	pass
+# Given the angle and direction of movement, predict the x, y location
+def predictLocation(angle, direction, anglesMapping):
+	angles = sorted(list(anglesMapping.keys()))
+
+	angleBuffer = 0.025
+	angleRange = (angle - angleBuffer, angle + angleBuffer)
+	points = []
+	for a in angles:
+		if a >= angleRange[0] and a <= angleRange[1]:
+			section = 'top' if direction == 1 else 'bot'
+			points += anglesMapping[a][section]
+
+	x_c = np.mean(np.array([x for x, _ in points]))
+	y_c = np.mean(np.array([y for _, y in points]))
+
+	# Project onto line y = tan(angle) * x
+	c = y_c + x_c * tan(angle)
+	x_p = c / (tan(angle) + a / tan(angle))
+	y_p = tan(angle) * x_p
+
+	return (x_p, y_p)
 
 # Return a RMSE score given 10000 x 1000 predictions
 def evaluate(predictions):
@@ -923,8 +923,8 @@ if __name__ == '__main__':
 	np.set_printoptions(threshold=np.nan)
 	# run()
 
-	predictedAngles = getPredictedAngles()
-	predictedAngles = loadDict('predicted_angles.pkl')
+	# predictedAngles = getPredictedAngles()
+	# predictedAngles = loadDict('predicted_angles.pkl')
 
 
 
