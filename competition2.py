@@ -195,6 +195,7 @@ def createLabelsDict():
 
 # Create submission file using 4000 (x, y) predicted location points
 def createSubmission(predLocations, fileName):
+	print 'creating submission file...'
 	with open(fileName, 'wb') as f:
 		f.write('Id,Value\n')
 
@@ -718,18 +719,20 @@ def betterHmm16():
 	}
 
 	predictedStates = loadPredictedStatesCSV(16)
-
 	last4000Direction = getLast4000Direction(predictedStates, hmm16_pred_actual_mapping)
 
-	# predicted4000Angles = linearRegression()
-	predicted4000Angles = getPredictedAngles() # TODO: THIS GIVES AND ERROR
+	print 'getting predicted angles...'
+	# predicted4000Angles = getPredictedAngles()
+	predicted4000Angles = getPredictedAngles2()
 	anglesMapping = loadDict('./angle_mapping.csv')
 
+	print 'predicting locations...'
 	predLocations = []
 	for angle, direction in zip(predicted4000Angles, last4000Direction):
 		predLoc = predictLocation(angle, direction, anglesMapping)
+		predLocations.append(predLoc)
 
-	createSubmission(predLocations, './hmm16_submission_test.csv')
+	createSubmission(predLocations, './hmm16_submission_pred_angles_2.csv')
 
 
 def graph(formula, x_range):
@@ -806,6 +809,8 @@ def predictLocation(angle, direction, anglesMapping):
 
 	return (x_p, y_p)
 
+
+
 # Return a RMSE score given 10000 x 1000 predictions
 def evaluate(predictions):
 	labels = np.genfromtxt("../LabelSorted.csv", delimiter=',')
@@ -846,7 +851,7 @@ def getGuessParameters(peaks, valleys):
 
 # Get the fitted parameters
 def getFittedParameters(data, guess_amplitude, guess_period, guess_hShift, guess_vShift):
-	t = np.linspace(1, 1000, 1000, dtype='int32')
+	t = np.linspace(1, 1000, 1000, dtype = 'int32')
 
 	# First estimate
 	data_guess = guess_amplitude * np.sin(guess_period * (t + guess_hShift)) + guess_vShift
@@ -918,6 +923,30 @@ def getPredictedAngles():
 		amplitude, period, hShift, vShift = getGuessParameters(peaks, valleys)
 		fit_amplitude, fit_period, fit_hShift, fit_vShift = getFittedParameters(angles, amplitude, period, hShift, vShift)
 		predAngle = fit_amplitude * np.sin(fit_period * (1001 + fit_hShift)) + fit_vShift
+		predAngles.append(predAngle)
+
+	return predAngles
+
+def getPredictedAngles2():
+	OM = createObservationMatrix()[:, -4:]
+	angleBuckets = [0.4039724, 0.6232251, 1.01099311, 1.20409]
+
+	predAngles = []
+	for run in OM:
+		predAngle = 0
+		if run[3] < angleBuckets[0] or run[3] > angleBuckets[3]:
+			# Avg angle
+			predAngle = np.mean(run[1:])
+		elif run[3] < angleBuckets[1] or run[3] > angleBuckets[2]:
+			# Avg delta
+			diff = run[3]-run[2] + run[2]-run[1] + run[1]-run[0]
+			diff /= 3
+			predAngle = run[3] + diff
+		else:
+			# Middle zone, keep delta trend
+			prevDelta = run[3]-run[2]
+			predAngle = run[3] + prevDelta
+
 		predAngles.append(predAngle)
 
 	return predAngles
@@ -1047,16 +1076,51 @@ def getFinalDirections():
 
 	return directions
 
+def dist(p1, p2):
+	x_d = mean_squared_error([p1[0]], [p2[0]])
+	y_d = mean_squared_error([p2[1]], [p2[1]])
+	return sqrt(x_d + y_d)
+
+def compareSubmissions(filename1, filename2):
+	with open(filename1, 'r') as f1:
+		with open(filename2, 'r') as f2:
+			lines1 = f1.readlines()
+			lines2 = f2.readlines()
+
+			totalDistance = 0
+			for i in range(1, len(lines1), 2):
+				x1 = float(lines1[i].split(',')[1])
+				y1 = float(lines1[i+1].split(',')[1])
+				x2 = float(lines2[i].split(',')[1])
+				y2 = float(lines2[i+1].split(',')[1])
+
+				totalDistance += dist((x1, y1), (x2, y2))
+			totalDistance = sqrt(totalDistance / (len(lines1)-1))
+
+			print 'Total distance', totalDistance
+
+def compare1001AngleTo1000Angle():
+	# predAngles = linearRegression()
+	predAngles = getPredictedAngles2()
+	OM = createObservationMatrix()[:, -3:]
+
+	with open('./angle_comparison.csv', 'wb') as f:
+		for idx, angle in enumerate(predAngles):
+			array = list(OM[idx])
+			array.append(angle)
+
+			f.write(','.join(map(str, array)))
+			f.write('\n')
+
 if __name__ == '__main__':
 	np.set_printoptions(threshold=np.nan)
 
 	# directions = getFinalDirections()
 	# predictedAngles = loadDict('predicted_angles.pkl')
 	# anglesMapping = loadDict('angles_dict.pkl')
-	betterHmm16()
-
-
-
+	# compareSubmissions('./hmm16_submission_2.csv', './hmm16_submission_pred_angles.csv')
+	# betterHmm16()
+	compare1001AngleTo1000Angle()
 
 
 
