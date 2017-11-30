@@ -34,7 +34,7 @@ def plotBotMovement():
 
 # Plot the states that the labels are assigned to
 # Currently supports up to HMM 16
-def plotPredictedStates(predictedStates, numStates=10):
+def plotPredictedStates(predictedStates, centroidMapping=None, numStates=10):
 	labels = np.genfromtxt("../Label.csv", delimiter=',')
 
 	# Map each state to a distinct RGB color
@@ -46,14 +46,34 @@ def plotPredictedStates(predictedStates, numStates=10):
 	yVals = [[] for _ in range(numStates)]
 	for label in labels:
 		run, step, x, y = label
-		nextState = predictedStates[int(run) - 1, int(step) - 1]
+		nextState = int(predictedStates[int(run) - 1, int(step) - 1])
 		xVals[nextState].append(x + 1.5)
 		yVals[nextState].append(y + 1.5)
 
 	for i in range(numStates):
 		plt.scatter(xVals[i], yVals[i], color=cmap[i], marker='.')
 
-	plt.plot([0, 2.5], [2.5, 0], linestyle='solid')
+	if centroidMapping:
+		xCentroids, yCentroids = [], []
+		for botCoord, topCoord in centroidMapping.values():
+			botX, botY = botCoord
+			topX, topY = topCoord
+			xCentroids.extend([botX, topX])
+			yCentroids.extend([botY, topY])
+
+		plt.plot(xCentroids, yCentroids, 'wo')
+
+	plt.plot([0.54835999999999996, 0.72145000000000004], [1.105, 1.4535180000000001], linestyle='solid')
+	plt.plot([1.1239399999999999, 1.29097], [2.2643399999999998, 2.6010999999999997], linestyle='solid')
+
+	# plt.plot([0, 2.5], [2.5, 0], linestyle='solid') 
+	plt.show()
+
+# Plot the distribution of observed angles
+def plotObservedAngleDistribution():
+	OM = createObservationMatrix()
+	angles = OM.flatten().reshape(-1, 1)
+	plt.hist(angles, normed=False, bins=50)
 	plt.show()
 
 #################
@@ -106,8 +126,8 @@ def createLabelsDict():
 	return locations
  
 # Create submission file using 4000 (x, y) predicted location points
-def createSubmission(predLocations):
-	with open('hmm10_submission.csv', 'wb') as f:
+def createSubmission(predLocations, k):
+	with open('hmm%i_submission.csv' % k, 'wb') as f:
 		f.write('Id,Value\n')
 
 		for i, (x, y) in enumerate(predLocations):
@@ -147,14 +167,14 @@ def writeLabelSortedCSV():
 	np.savetxt('../LabelSorted.csv', sortedLabels, fmt=['%i']*2 + ['%f']*2, delimiter=",")
 
 # Write to CSV the 10000 x 1000 predicted states matrix
-def writePredictedStatesCSV():
-	model = joblib.load('hmm10_diag.pkl')
+def writePredictedStatesCSV(k=10):
+	model = joblib.load('hmm%i_diag.pkl' % k)
 	predictedStates = getPredictedStates(model)
-	np.savetxt('hmm10_predicted_states.csv', predictedStates, fmt='%i', delimiter=",")
+	np.savetxt('hmm%i_predicted_states.csv' % k, predictedStates, fmt='%i', delimiter=",")
 
 # Load 10000 x 1000 predicted states matrix from CSV
-def loadPredictedStatesCSV():
-	predictedStates = np.genfromtxt("hmm10_predicted_states.csv", delimiter=',')
+def loadPredictedStatesCSV(k=10):
+	predictedStates = np.genfromtxt("hmm%i_predicted_states.csv" % k, delimiter=',')
 
 	return predictedStates
 
@@ -195,6 +215,8 @@ def calculateMinMaxXY():
 
 # Use consecutive steps in runs to calculate average bot step size
 # Avg step size = 0.15356177070436083
+# Min step size = 0.00150479234448
+# Max step size = 0.613946069316
 def calculateAverageStepSize():
 	sortedLabels = np.genfromtxt("../LabelSorted.csv", delimiter=',')
 	distances = []
@@ -205,7 +227,35 @@ def calculateAverageStepSize():
 				distances.append(np.linalg.norm(sortedLabels[i-1,2:]-sortedLabels[i,2:]))
 
 	distances = np.array(distances)
+
+	# Plot bar graph
+	# plt.hist(distances, normed=True, bins=20)
+	# plt.show()
+
 	return np.mean(distances)
+
+# Calculate the average angle difference between consecutive angles
+# Avg angle diff = 0.050048676122122118
+def calculateAverageAngleDiff():
+	OM = createObservationMatrix()
+
+	avgAngleDiffs = []
+	for row in OM:
+		angleDiffs = []
+		for i in range(1, row.shape[0]):
+			angleDiff = abs(row[i] - row[i-1])
+			angleDiffs.append(angleDiff)
+
+		angleDiffs = np.array(angleDiffs)
+		avgAngleDiffs.append(np.mean(angleDiffs))
+
+	avgAngleDiffs = np.array(avgAngleDiffs)
+
+	# Plot bar graph
+	# plt.hist(distances, normed=True, bins=20)
+	# plt.show()
+
+	return np.mean(avgAngleDiffs)
 
 # Get the two centroids for each state 
 def getStateCentroids(predictedStates, mapping, numStates=10):
@@ -334,7 +384,7 @@ def getLast4000Direction(predictedStates, mapping):
 
 	for i in range(last4000last5.shape[0]):
 		for j in range(last4000last5.shape[1]):
-			last4000last5[i, j] = hmm10_pred_actual_mapping[last4000last5[i, j]]
+			last4000last5[i, j] = mapping[last4000last5[i, j]]
 
 	directions = [] # -1 for decreasing, 1 for increasing
 	for last5 in last4000last5:
@@ -355,12 +405,8 @@ def getLast4000Direction(predictedStates, mapping):
 
 	return directions
 
-if __name__ == '__main__':
-	np.set_printoptions(threshold=np.nan)
-
-	runHMM(16)
-	quit()
-
+# Write HMM 10 submission file
+def hmm10():
 	hmm10_pred_actual_mapping = {
 		0: 3,
 		1: 7,
@@ -416,6 +462,109 @@ if __name__ == '__main__':
 		predLocations.append(predLocation)
 
 	createSubmission(predLocations)
+
+# Write HMM 16 submission file
+def hmm16():
+	hmm16_pred_actual_mapping = {
+		0: 1,
+		1: 11,
+		2: 6,
+		3: 14,
+		4: 9,
+		5: 4,
+		6: 13,
+		7: 5,
+		8: 10,
+		9: 7,
+		10: 0,
+		11: 3,
+		12: 12,
+		13: 2,
+		14: 15,
+		15: 8
+	}
+
+	predictedStates = loadPredictedStatesCSV(16)
+	centroidMapping = loadDict('hmm16_centroid_mapping.csv')
+
+	last4000Direction = getLast4000Direction(predictedStates, hmm16_pred_actual_mapping)
+	last4000States = predictedStates[6000:,-1]
+
+	predLocations = []
+	for state, direction in zip(last4000States, last4000Direction):
+		botCoord, topCoord = centroidMapping[state]
+		predLocation = topCoord if direction == 1 else botCoord
+		predLocations.append(predLocation)
+
+	createSubmission(predLocations, 16)
+
+def graph(formula, x_range):  
+    x = np.array(x_range)  
+    y = eval(formula)
+    plt.plot(x, y)  
+    # plt.show()
+
+# labelledAngles is dictionary of key = angle and value = (run, step, (x, y))
+# minMaxAngles is dictionary of key = angle and value = 4 coordinates
+def getLabelledAngles():
+	labelsDict = createLabelsDict()
+
+	labelledAngles = {}
+	for run, vals in labelsDict.items():
+		for step, (x, y), angle in vals:
+			labelledAngles.setdefault(angle, []).append((run, step, (x,y)))
+
+	minMaxAngles = {}
+	for angle, vals in labelledAngles.items():
+		botMinX, botMinY = float('inf'), float('inf')
+		botMaxX, botMaxY = float('-inf'), float('-inf')
+		topMinX, topMinY = float('inf'), float('inf')
+		topMaxX, topMaxY = float('-inf'), float('-inf')
+
+		for run, step, (x, y) in vals:
+			if y > 2.5 - x: # Above line
+				if x <= topMinX and y <= topMinY:
+					topMinX, topMinY = x, y
+				if x >= topMaxX and y >= topMaxY:
+					topMaxX, topMaxY = x, y
+			else: # Below line
+				if x <= botMinX and y <= botMinY:
+					botMinX, botMinY = x, y
+				if x >= botMaxX and y >= botMaxY:
+					botMaxX, botMaxY = x, y
+
+		minMaxAngles[angle] = [(botMinX, botMinY), (botMaxX, botMaxY), (topMinX, topMinY), (topMaxX, topMaxY)]
+
+	return (labelledAngles, minMaxAngles)
+
+if __name__ == '__main__':
+	np.set_printoptions(threshold=np.nan)
+
+	"""
+	First column of observations matrix
+	- Angle after first step
+
+	Average angle: 0.83614049900000009
+	Min angle: 0.75205999999999995
+	Max angle: 0.93271000000000004
+
+	"""
+
+
+
+
+
+
+
+
+
+
+	
+
+
+
+
+
 
 
 
