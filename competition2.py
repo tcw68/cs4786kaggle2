@@ -87,6 +87,47 @@ def plotObservedAngleDistribution():
 	plt.hist(angles, normed=False, bins=50)
 	plt.show()
 
+# find mean of a list
+def mean(numbers):
+    return float(sum(numbers)) / max(len(numbers), 1)
+
+# Plot the distribution of observed angles
+def plotObservedAngleValues():
+	observations = np.genfromtxt("../Observations.csv", delimiter = ',')
+
+	amps=[]
+	amp=0
+	periods=[]
+	period=0
+	i=1
+	# for i in range(observations.shape[0]):
+	max=0
+	min=0
+	prevDeltaX=0
+	deltaX=0
+	for j in range(observations.shape[1]):
+		curr = observations[i,j]
+		prev = observations[i,j-1]
+		prevprev = observations[i,j-2]
+		if curr>max:
+			max=curr
+		elif curr<max and prev == max:
+			deltaX=j-1
+			periods.append(deltaX - prevDeltaX)
+			prevDeltaX = deltaX					
+		if curr<min:
+			min=curr
+	amps.append(max - min)
+	amp = mean(amps)
+	period = mean(periods)
+	print "Amplitude: ", str(amp)
+	print "Period: ", str(period)
+	return
+
+
+	# 		plt.scatter(observations, normed=False, bins=50)
+	# plt.show()
+
 #################
 # PREPROCESSING #
 #################
@@ -584,7 +625,7 @@ if __name__ == '__main__':
 	Max angle: 0.93271000000000004
 
 	"""
-
+	plotObservedAngleValues()
 
 
 
