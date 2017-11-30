@@ -646,9 +646,11 @@ def plotAnglesAtRun(run):
 
 	# Plot labelled points for run
 	labelsDict = createLabelsDict()
-	steps = labelsDict[run]
-	for step, _, angle in steps:
-		plt.scatter(step, angle, color='red', marker='.')
+
+	if run in labelsDict:
+		steps = labelsDict[run]
+		for step, _, angle in steps:
+			plt.scatter(step, angle, color='red', marker='.')
 
 	# Plot midline
 	plt.plot([1, 1001], [avgAngle, avgAngle], linestyle='solid')
@@ -690,8 +692,9 @@ def getPredictedAngles():
 if __name__ == '__main__':
 	np.set_printoptions(threshold=np.nan)
 
-	# predictedAngles = getPredictedAngles()
+	predictedAngles = getPredictedAngles()
 	predictedAngles = loadDict('predicted_angles.pkl')
+
 
 
 
