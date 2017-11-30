@@ -74,9 +74,11 @@ def plotPredictedStates(predictedStates, centroidMapping=None, numStates=10):
 	yVals = [[] for _ in range(numStates)]
 	for label in labels:
 		run, step, x, y = label
-		nextState = int(predictedStates[int(run) - 1, int(step) - 1])
-		xVals[nextState].append(x + 1.5)
-		yVals[nextState].append(y + 1.5)
+		if 1000 <= run < 2000: 
+			run = int(run) - 1000
+			nextState = int(predictedStates[int(run) - 1, int(step) - 1])
+			xVals[nextState].append(x + 1.5)
+			yVals[nextState].append(y + 1.5)
 
 	for i in range(numStates):
 		plt.scatter(xVals[i], yVals[i], color=cmap[i], marker='.')
@@ -338,29 +340,68 @@ def getStateCentroids(predictedStates, mapping, numStates=10):
 # Also saves a pickle for future use
 def runHMM(k, cov_type='diag'):
 	observations = np.genfromtxt("../Observations.csv", delimiter = ',')
-	newObs = np.zeros((10000,1000,4))
 
-	for i in range(observations.shape[0]):
-		for j in range(observations.shape[1]):
-			if j < 3:
-				newObs[i, j, :] = observations[i, j]
-			else:
-				newObs[i, j, 0] = observations[i, j]
-				newObs[i, j, 1] = observations[i, j-1]
-				newObs[i, j, 2] = observations[i, j-2]
-				newObs[i, j, 3] = observations[i, j-3]
+	# for i in range(observations.shape[0]):
+	# 	for j in range(observations.shape[1]):
+	# 		if j < 3:
+	# 			newObs[i, j, :] = observations[i, j]
+	# 		else:
+	# 			newObs[i, j, 0] = observations[i, j]
+	# 			newObs[i, j, 1] = observations[i, j-1]
+	# 			newObs[i, j, 2] = observations[i, j-2]
+	# 			newObs[i, j, 3] = observations[i, j-3]
 
 	# np.savetxt('newObs,csv', newObs, fmt='%f', delimiter=",")
+
 	print "Starting HMM"
 	start_time = time.time()
 	model = hmm.GaussianHMM(n_components=k, covariance_type=cov_type)
-	X = newObs.flatten().reshape(-1, 1)
+	X = observations.flatten().reshape(-1, 1)
 	lengths = [1000] * 10000
 	model.fit(X, lengths)
 	print "Done running HMM"
 
 	joblib.dump(model, "hmm%i_%s.pkl" % (k, cov_type))
 	print("--- %s seconds ---" % (time.time() - start_time))
+
+# Run HMM with given k components and covariance type
+# Also saves a pickle for future use
+def runTruncatedHMM(k, cov_type='diag'):
+	observations = np.genfromtxt("../Observations.csv", delimiter = ',')
+	observations = observations[:1000,:]
+
+	# np.savetxt('newObs,csv', newObs, fmt='%f', delimiter=",")
+	print "Starting HMM"
+	start_time = time.time()
+	model = hmm.GaussianHMM(n_components=k, covariance_type=cov_type)
+	X = observations.flatten().reshape(-1, 1)
+	lengths = [1000] * 1000
+	model.fit(X, lengths)
+	print "Done running HMM"
+
+	joblib.dump(model, "trunc_hmm%i_%s.pkl" % (k, cov_type))
+	print("--- %s seconds ---" % (time.time() - start_time))
+
+def getTruncPredictedStates(model):
+	observations = np.genfromtxt("../Observations.csv", delimiter = ',')
+	observations = observations[1000:2000,:]
+	X = observations.flatten().reshape(-1, 1)
+	lengths = [1000] * 1000
+	predictedStates = model.predict(X, lengths)
+
+	return np.reshape(predictedStates, (1000,1000))
+
+# Write to CSV the 10000 x 1000 predicted states matrix
+def writeTruncPredictedStatesCSV(k=10):
+	model = joblib.load('trunc_hmm%i_diag.pkl' % k)
+	predictedStates = getTruncPredictedStates(model)
+	np.savetxt('trunc_hmm%i_predicted_states.csv' % k, predictedStates, fmt='%i', delimiter=",")
+
+# Load 10000 x 1000 predicted states matrix from CSV
+def loadTruncPredictedStatesCSV(k=10):
+	predictedStates = np.genfromtxt("trunc_hmm%i_predicted_states.csv" % k, delimiter=',')
+
+	return predictedStates
 
 # Get predictions from model
 def getPredictedStates(model):
@@ -814,10 +855,10 @@ def plotAnglesAtRun(run):
 		plt.scatter(x, y, color='green', marker='.')
 
 	# Plot fitted function
-	# amplitude, period, hShift, vShift = getGuessParameters(peaks, valleys)
-	# fit_amplitude, fit_period, fit_hShift, fit_vShift = getFittedParameters(angles, amplitude, period, hShift, vShift)
-	# fit_ys = [fit_amplitude * np.sin(fit_period * (x + fit_hShift)) + fit_vShift for x in xs]
-	# plt.plot(xs, fit_ys)
+	amplitude, period, hShift, vShift = getGuessParameters(peaks, valleys)
+	fit_amplitude, fit_period, fit_hShift, fit_vShift = getFittedParameters(angles, amplitude, period, hShift, vShift)
+	fit_ys = [fit_amplitude * np.sin(fit_period * (x + fit_hShift)) + fit_vShift for x in xs]
+	plt.plot(xs, fit_ys)
 
 	plt.show()
 
@@ -1104,12 +1145,19 @@ def getEllipseEquation(x):
 if __name__ == '__main__':
 	np.set_printoptions(threshold=np.nan)
 
-	circleLineCalculation()
-	quit()
 	# directions = getFinalDirections()
 	# predictedAngles = loadDict('predicted_angles.pkl')
 	# anglesMapping = loadDict('angles_dict.pkl')
-	betterHmm16()
+
+	# runTruncatedHMM(20)
+	# writeTruncPredictedStatesCSV(20)
+
+	# model = joblib.load('trunc_hmm20_diag.pkl')
+	# predictedStates = getTruncPredictedStates(model)
+
+	# predictedStates = loadTruncPredictedStatesCSV(20)
+	# plotPredictedStates(predictedStates, None, 20)
+	
 
 
 
