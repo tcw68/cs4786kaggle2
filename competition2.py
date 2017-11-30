@@ -23,6 +23,9 @@ First column of observations matrix
 Average angle: 0.83614049900000009
 Min angle: 0.75205999999999995
 Max angle: 0.93271000000000004
+
+-- All observations --
+Average angle: 0.78153661932199991
 """
 
 """
@@ -569,10 +572,6 @@ def findPeaksValleys(angles):
 
 	return (peaks, valleys)
 
-# Given the angle, predict the x, y location
-def predictLocation(angle):
-	pass
-
 # Return a RMSE score given 10000 x 1000 predictions
 def evaluate(predictions):
 	labels = np.genfromtxt("../LabelSorted.csv", delimiter=',')
@@ -689,11 +688,154 @@ def getPredictedAngles():
 
 	return predAngles
 
+# Get direction of movement: -1 for decreasing angle, +1 for increasing angle
+def getDirection(angleSeq):
+	direction = None
+	for i in range(len(angleSeq) - 1, 0, -1):
+		if direction: continue
+
+		prev, curr = angleSeq[i-1], angleSeq[i]
+		if prev < curr:
+			direction = 1
+		elif prev > curr:
+			direction = -1
+
+	if not direction:
+		direction = 1
+
+	return direction
+
+# Given the angle, predict the (x, y) location
+def predictLocation(angles):
+	pass
+
+# Find closest angle to given angle
+def findClosestAngle(angle):
+	anglesDict = loadDict('angles_dict.pkl')
+
+	if angle in anglesDict: return angle
+
+	# Find closest angle
+	angles = anglesDict.keys()
+
+	closestAngle = angles[0]
+	minDiff = abs(angles[0] - angle)
+	for a in angles[1:]:
+		if abs(angle - a) < minDiff:
+			minDiff = abs(angle - a)
+			closestAngle = a
+
+	return a
+
+# Write angles dictionary
+# angle -> {direction -> [locations...]}
+def writeAnglesDict():
+	OM = createObservationMatrix()
+	labels = np.genfromtxt("../LabelSorted.csv", delimiter=',')
+
+	anglesDict = {}
+	for label in labels:
+		run, step, x, y = label
+		angle = OM[int(run)-1, int(step)-1]
+		angleSeq = OM[int(run)-1, int(step)-6:int(step)-1]
+		direction = getDirection(angleSeq)
+		anglesDict.setdefault(angle, {}).setdefault(direction, []).append((x, y))
+
+	writeDict(anglesDict, 'angles_dict.pkl')
+
+def plotXYAngle(labelsDict, run, flipY=False):
+	labels = labelsDict[run]
+	avgAngle = 0.78153661932199991 # Average angle of all observations
+
+	xs, ys, angles = [], [], []
+	for _, (x, y), angle in labels:
+		xs.append(x)
+		ys.append(y)
+		angles.append(angle)
+
+	for angle, x in zip(angles, xs):
+		plt.plot(angle, x, color='red', marker='.')
+
+	if flipY:
+		angleDiff = [a - avgAngle for a in angles]
+		angles = [avgAngle - diff for diff in angleDiff]
+
+	for angle, y in zip(angles, ys):
+		plt.plot(angle, y, color='blue', marker='.')
+
+	plotMidLine()
+
+	plt.xlabel('Angle')
+	plt.ylabel('X = red, Y = blue')
+
+def plotXYAngle(labelsDict, run, flipY=False):
+	labels = labelsDict[run]
+
+	xs, ys, angles = [], [], []
+	for _, (x, y), angle in labels:
+		xs.append(x)
+		ys.append(y)
+		angles.append(angle)
+
+	for angle, x in zip(angles, xs):
+		plt.plot(angle, x, color='red', marker='.')
+
+	for angle, y in zip(angles, ys):
+		plt.plot(angle, y, color='blue', marker='.')
+
+	plt.xlabel('Angle')
+	plt.ylabel('X = red, Y = blue')
+
+def plotMidLine():
+	plt.plot([avgAngle, avgAngle], [0, 3], linestyle='solid')
+
 if __name__ == '__main__':
 	np.set_printoptions(threshold=np.nan)
 
-	predictedAngles = getPredictedAngles()
-	predictedAngles = loadDict('predicted_angles.pkl')
+	OM = createObservationMatrix()
+
+	# predictedAngles = loadDict('predicted_angles.pkl')
+	# finalAngles = [findClosestAngle(a) for a in predictedAngles]
+
+	# directions = []
+	# for row in OM:
+	# 	lastAngleSeq = row[-5:]
+	# 	direction = getDirection(lastAngleSeq)
+	# 	directions.append(direction)
+
+	# labels = np.genfromtxt("../LabelSorted.csv", delimiter=',')
+
+	# xs, ys, angles = [], [], []
+	# for label in labels:
+	# 	run, step, x, y = label
+	# 	angle = OM[int(run)-1, int(step)-1]
+	# 	xs.append(x)
+	# 	ys.append(y)
+	# 	angles.append(angle)
+
+	labelsDict = createLabelsDict()
+
+	avgAngle = 0.78153661932199991
+
+
+
+	# print "plotting..."
+
+	# for x, angle in zip(xs, angles):
+	# 	plt.scatter(x, angle, color='red', marker='.')
+
+	# for y, angle in zip(ys, angles):
+	# 	plt.scatter(y, angle, color='blue', marker='.')	
+
+	# plt.plot(xs, angles)
+
+	# plt.plot(ys, angles)
+	# plt.show()
+
+
+
+
+	
 
 
 
