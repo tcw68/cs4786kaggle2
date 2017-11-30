@@ -7,9 +7,28 @@ from sklearn.externals import joblib
 import time
 import pickle
 from random import randint
-from sklearn import linear_model
+import operator
 from sklearn.metrics import mean_squared_error
 import sys
+from scipy.optimize import curve_fit
+from numpy import pi, r_
+from scipy import optimize
+from scipy.optimize import leastsq
+import numpy, scipy.optimize
+from sklearn import linear_model
+
+"""
+First column of observations matrix
+- Angle after first step
+
+Average angle: 0.83614049900000009
+Min angle: 0.75205999999999995
+Max angle: 0.93271000000000004
+"""
+
+"""
+- Find peak points and valley points
+"""
 
 ############
 # PLOTTING #
@@ -72,13 +91,6 @@ def plotPredictedStates(predictedStates, centroidMapping=None, numStates=10):
 	plt.plot([0, 2.5], [2.5, 0], linestyle='solid') 
 	plt.show()
 
-# Plot angles at all steps for run i (starting at 1)
-def plotAnglesAtRun(i):
-	OM = createObservationMatrix()
-	run = OM[i-1]
-	plt.plot(run)
-	plt.show()
-
 # Plot the distribution of observed angles
 # Min angle = 0.12031 ~ 6.893255233 degrees
 # Max angle = 1.4424 ~ 82.6434324 degrees
@@ -87,47 +99,6 @@ def plotObservedAngleDistribution():
 	angles = OM.flatten().reshape(-1, 1)
 	plt.hist(angles, normed=False, bins=50)
 	plt.show()
-
-# find mean of a list
-def mean(numbers):
-    return float(sum(numbers)) / max(len(numbers), 1)
-
-# Plot the distribution of observed angles
-def plotObservedAngleValues():
-	observations = np.genfromtxt("../Observations.csv", delimiter = ',')
-
-	amps=[]
-	amp=0
-	periods=[]
-	period=0
-	i=1
-	# for i in range(observations.shape[0]):
-	max=0
-	min=0
-	prevDeltaX=0
-	deltaX=0
-	for j in range(observations.shape[1]):
-		curr = observations[i,j]
-		prev = observations[i,j-1]
-		prevprev = observations[i,j-2]
-		if curr>max:
-			max=curr
-		elif curr<max and prev == max:
-			deltaX=j-1
-			periods.append(deltaX - prevDeltaX)
-			prevDeltaX = deltaX					
-		if curr<min:
-			min=curr
-	amps.append(max - min)
-	amp = mean(amps)
-	period = mean(periods)
-	print "Amplitude: ", str(amp)
-	print "Period: ", str(period)
-	return
-
-
-	# 		plt.scatter(observations, normed=False, bins=50)
-	# plt.show()
 
 #################
 # PREPROCESSING #
@@ -574,7 +545,7 @@ def hmm10():
 				xtop, ytop = topCoord
 				print xtop, ytop
 
-				d_prime = math.sqrt((xtopnext - xtop)**2 + (ytopnext - ytop)**2)
+				d_prime = sqrt((xtopnext - xtop)**2 + (ytopnext - ytop)**2)
 
 				predLocation = (xtop + (0.15 * (xtopnext - xtop) / d_prime), ytop + (0.15 * (ytopnext-ytop) / d_prime))
 
@@ -586,7 +557,7 @@ def hmm10():
 				xbotnext, ybotnext = botCoordnext
 				xbot, ybot = botCoord
 
-				d_prime = math.sqrt((xbotnext - xbot)**2 + (ybotnext - ybot)**2)
+				d_prime = sqrt((xbotnext - xbot)**2 + (ybotnext - ybot)**2)
 
 				predLocation = (xbot + (0.15 * (xbotnext - xbot) / d_prime), ybot + (0.15 * (ybotnext-ybot) / d_prime))
 
@@ -672,22 +643,165 @@ def getLabelledAngles():
 
 	return (labelledAngles, minMaxAngles)
 
+# Find the peak and valley points given observation angles for a particular run
+def findPeaksValleys(angles):
+	peaks, valleys = [], []
+	for i in range(0, angles.shape[0], 50):
+		angleSection = angles[i:i+50]
+		minIdx, minAngle = min(enumerate(angleSection), key=operator.itemgetter(1))
+		maxIdx, maxAngle = max(enumerate(angleSection), key=operator.itemgetter(1))
+
+		valleys.append((i + minIdx, minAngle))
+		peaks.append((i + maxIdx, maxAngle))
+
+	return (peaks, valleys)
+
+# Given the angle, predict the x, y location
+def predictLocation(angle):
+	pass
+
+# Return a RMSE score given 10000 x 1000 predictions
+def evaluate(predictions):
+	labels = np.genfromtxt("../LabelSorted.csv", delimiter=',')
+
+	rmse = 0.0
+	for label in labels:
+		run, step, x, y = label
+		run, step = int(run), int(step)
+		predX, predY = predictions[run-1, step-1]
+		rmseX = sqrt(mean_squared_error(x, predX))
+		rmseY = sqrt(mean_squared_error(y, predY))
+		rmse += rmseX + rmseY
+
+	return rmse
+
+# Get the guess parameters for the sine function
+def getGuessParameters(peaks, valleys):
+	# Calculate amplitude
+	peakAngles = [angle for _, angle in peaks]
+	valleyAngles = [angle for _, angle in valleys]
+	avgPeakAngle = np.mean(np.array(peakAngles))
+	avgValleyAngle = np.mean(np.array(valleyAngles))
+	amplitude = (avgPeakAngle - avgValleyAngle) / 2
+
+	# Calculate period
+	peakSteps = [steps for steps, _ in peaks]
+	valleySteps = [steps for steps, _ in valleys]
+	avgPeakStep = np.mean(np.array([y - x for x, y in zip(peakSteps, peakSteps[1:])]))
+	avgValleyStep = np.mean(np.array([y - x for x, y in zip(valleySteps, valleySteps[1:])]))
+	frequency = np.mean([avgPeakStep, avgValleyStep])
+	period = (2 * pi) / frequency
+
+	# Calculate horizontal and vertical shifts
+	hShift = peakSteps[0] - (frequency / 2.0)
+	vShift = (avgPeakAngle + avgValleyAngle) / 2.0
+
+	return amplitude, period, hShift, vShift
+
+# Get the fitted parameters
+def getFittedParameters(data, guess_amplitude, guess_period, guess_hShift, guess_vShift):
+	t = np.linspace(1, 1000, 1000, dtype='int32')
+
+	# First estimate
+	data_guess = guess_amplitude * np.sin(guess_period * (t + guess_hShift)) + guess_vShift
+
+	# Define optimal function: minimize difference between actual data and guess
+	opt_func = lambda x: guess_amplitude * np.sin(x[0] * (t + x[1])) + x[2] - data
+	est_period, est_hShift, est_vShift = leastsq(opt_func, [guess_period, guess_hShift, guess_vShift])[0]
+	est_amplitude = guess_amplitude
+
+	# Fit curve using optimal parameters
+	data_fit = est_amplitude * np.sin(est_period * (t + est_hShift)) + est_vShift
+
+	# plt.plot(data, '.')
+	# plt.plot(data_fit, label='after fitting')
+	# plt.plot(data_guess, label='first guess')
+	# plt.legend()
+	# plt.show()
+
+	return (est_amplitude, est_period, est_hShift, est_vShift)
+
+# Plot angles at all steps for run i (starting at 1)
+def plotAnglesAtRun(run):
+	OM = createObservationMatrix()
+	angles = OM[run-1]
+	avgAngle = np.mean(angles)
+
+	# Plot actual observation angles
+	xs = range(1, 1001)
+	plt.plot(xs, angles)
+
+	# Plot labelled points for run
+	labelsDict = createLabelsDict()
+
+	if run in labelsDict:
+		steps = labelsDict[run]
+		for step, _, angle in steps:
+			plt.scatter(step, angle, color='red', marker='.')
+
+	# Plot midline
+	plt.plot([1, 1001], [avgAngle, avgAngle], linestyle='solid')
+
+	# Plot division lines
+	# for i in range(0, angles.shape[0], 50):
+	# 	plt.plot([i, i], [0, 1.4], linestyle='solid')
+
+	# Plot peaks and valleys
+	peaks, valleys = findPeaksValleys(angles)
+
+	for x, y in peaks:
+		plt.scatter(x, y, color='green', marker='.')
+
+	for x, y in valleys:
+		plt.scatter(x, y, color='green', marker='.')
+
+	# Plot fitted function
+	amplitude, period, hShift, vShift = getGuessParameters(peaks, valleys)
+	fit_amplitude, fit_period, fit_hShift, fit_vShift = getFittedParameters(angles, amplitude, period, hShift, vShift)
+	fit_ys = [fit_amplitude * np.sin(fit_period * (x + fit_hShift)) + fit_vShift for x in xs]
+	plt.plot(xs, fit_ys)
+
+	plt.show()
+
+# Get a 10000 x 1 array of the 1001th predicted angles
+def getPredictedAngles():
+	OM = createObservationMatrix()
+	predAngles = []
+	for angles in OM:
+		peaks, valleys = findPeaksValleys(angles)
+		amplitude, period, hShift, vShift = getGuessParameters(peaks, valleys)
+		fit_amplitude, fit_period, fit_hShift, fit_vShift = getFittedParameters(angles, amplitude, period, hShift, vShift)
+		predAngle = fit_amplitude * np.sin(fit_period * (1001 + fit_hShift)) + fit_vShift
+		predAngles.append(predAngle)
+
+	return predAngles
+
 if __name__ == '__main__':
 	np.set_printoptions(threshold=np.nan)
-	run()
 
-	"""
-	First column of observations matrix
-	- Angle after first step
-
-	Average angle: 0.83614049900000009
-	Min angle: 0.75205999999999995
-	Max angle: 0.93271000000000004
-
-	"""
-	# plotObservedAngleValues()
+	predictedAngles = getPredictedAngles()
+	predictedAngles = loadDict('predicted_angles.pkl')
 
 
+
+
+
+
+
+
+	
+
+
+
+
+
+
+
+
+
+
+
+	
 
 
 
