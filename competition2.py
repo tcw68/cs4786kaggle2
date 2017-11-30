@@ -7,8 +7,8 @@ from sklearn.externals import joblib
 import time
 import pickle
 from random import randint
-import math
 from sklearn import linear_model
+from sklearn.metrics import mean_squared_error
 
 ############
 # PLOTTING #
@@ -410,16 +410,26 @@ def linearRegression():
 	observations = np.genfromtxt("../Observations.csv", delimiter=',')
 	regr = linear_model.LinearRegression()
 	x_train = [998, 999, 1000]
-	angle10001predictions = []
+	angle1001predictions = []
 
 	for i in range(observations.shape[0]):
 		y_train = []
 		for j in range(3,0,-1):
 			y_train.append(observations[i, -j])
 		regr.fit(np.array(x_train).reshape(-1, 1), np.array(y_train).reshape(-1,1))
-		angle10001predictions.append(round(regr.predict(1001)[0][0], 8))
+		angle1001predictions.append(round(regr.predict(1001)[0][0], 8))
 
-	return angle10001predictions
+	return angle1001predictions
+
+def evaluate(y_actual, y_predicted):
+	rms = sqrt(mean_squared_error(y_actual, y_predicted))
+	return rms
+
+def circleLineCalculation(angle_predictions):
+	angle_predictions4000 = angle_predictions[6000:]
+
+	for i in angle_predictions4000:
+		 = math.tan(angle_predictions) * x
 
 
 def run():
