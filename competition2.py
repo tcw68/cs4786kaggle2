@@ -625,18 +625,10 @@ def newHmm16():
 	angleBuffer = 0.025
 	for angle, direction in zip(last4000Angles, last4000Direction):
 		angle += angleDelta * direction
-		angleRange = (angle - angleBuffer, angle + angleBuffer)
-		points = []
-		for a in angles:
-			if a >= angleRange[0] and a <= angleRange[1]:
-				section = 'top' if direction == 1 else 'bot'
-				points += anglesMapping[a][section]
+		predLoc = predictLocation(angle, direction, anglesMapping)
+		predLocations.append(predLoc)
 
-		x_coord = np.mean(np.array([x for x, _ in points]))
-		y_coord = np.mean(np.array([y for _, y in points]))
-		predLocations.append((x_coord, y_coord))
-
-	createSubmission(predLocations, './hmm16_submission.csv')
+	createSubmission(predLocations, './hmm16_submission_dup.csv')
 
 
 def betterHmm16():
@@ -663,7 +655,6 @@ def betterHmm16():
 	last4000Direction = getLast4000Direction(predictedStates, hmm16_pred_actual_mapping)
 
 	print 'getting predicted angles...'
-	# predicted4000Angles = getPredictedAngles()
 	predicted4000Angles = getPredictedAngles2()
 	anglesMapping = loadDict('./angle_mapping.csv')
 
@@ -673,7 +664,7 @@ def betterHmm16():
 		predLoc = predictLocation(angle, direction, anglesMapping)
 		predLocations.append(predLoc)
 
-	createSubmission(predLocations, './hmm16_submission_pred_angles_2.csv')
+	createSubmission(predLocations, './hmm16_submission_pred_angles_3.csv')
 
 
 def graph(formula, x_range):
@@ -743,12 +734,13 @@ def predictLocation(angle, direction, anglesMapping):
 	x_c = np.mean(np.array([x for x, _ in points]))
 	y_c = np.mean(np.array([y for _, y in points]))
 
-	# Project onto line y = tan(angle) * x
-	c = y_c + x_c * tan(angle)
-	x_p = c / (tan(angle) + a / tan(angle))
-	y_p = tan(angle) * x_p
+	# # Project onto line y = tan(angle) * x
+	# c = y_c + x_c * tan(angle)
+	# x_p = c / (tan(angle) + 1 / tan(angle))
+	# y_p = tan(angle) * x_p
 
-	return (x_p, y_p)
+
+	return (x_c, y_c)
 
 # Return a RMSE score given 10000 x 1000 predictions
 def evaluate(predictions):
@@ -1099,28 +1091,6 @@ def mapAnglesToLocations():
 	# writeDict(angleMapping, './angle_mapping.csv')
 	return angleMapping
 
-# Given the angle and direction of movement, predict the x, y location
-def predictLocation(angle, direction, anglesMapping):
-	angles = sorted(list(anglesMapping.keys()))
-
-	angleBuffer = 0.025
-	angleRange = (angle - angleBuffer, angle + angleBuffer)
-	points = []
-	for a in angles:
-		if a >= angleRange[0] and a <= angleRange[1]:
-			section = 'top' if direction == 1 else 'bot'
-			points += anglesMapping[a][section]
-
-	x_c = np.mean(np.array([x for x, _ in points]))
-	y_c = np.mean(np.array([y for _, y in points]))
-
-	# Project onto line y = tan(angle) * x
-	c = y_c + x_c * tan(angle)
-	x_p = c / (tan(angle) + a / tan(angle))
-	y_p = tan(angle) * x_p
-
-	return (x_p, y_p)
-
 # Get most likely direction of 1001th point
 def getFinalDirections():
 	OM = createObservationMatrix()
@@ -1203,37 +1173,12 @@ if __name__ == '__main__':
 	np.set_printoptions(threshold=np.nan)
 
 	# predictedAngles = getPredictedAngles()
-	predictedStates = loadPredictedStatesCSV(16)
-	hmm16_pred_actual_mapping = {
-		0: 1,
-		1: 11,
-		2: 6,
-		3: 14,
-		4: 9,
-		5: 4,
-		6: 13,
-		7: 5,
-		8: 10,
-		9: 7,
-		10: 0,
-		11: 3,
-		12: 12,
-		13: 2,
-		14: 15,
-		15: 8
-	}
-
-	centroidMapping = getStateCentroids(predictedStates, hmm16_pred_actual_mapping, 16)
-	plotPredictedStates(predictedStates, centroidMapping, 16)
-	quit()
-	circleLineCalculation(predictedAngles, centroidMapping)
-	quit()
 	# directions = getFinalDirections()
 	# predictedAngles = loadDict('predicted_angles.pkl')
 	# anglesMapping = loadDict('angles_dict.pkl')
-	# compareSubmissions('./hmm16_submission_2.csv', './hmm16_submission_pred_angles.csv')
-	# betterHmm16()
-	compare1001AngleTo1000Angle()
+	# compareSubmissions('./hmm16_submission_2.csv', './hmm16_submission_pred_angles_3.csv')
+	newHmm16()
+	# compare1001AngleTo1000Angle()
 
 
 
