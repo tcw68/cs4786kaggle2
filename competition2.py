@@ -7,6 +7,7 @@ from sklearn.externals import joblib
 import time
 import pickle
 from random import randint
+import math
 
 ############
 # PLOTTING #
@@ -320,13 +321,25 @@ def getStateCentroids(predictedStates, mapping, numStates=10):
 # Also saves a pickle for future use
 def runHMM(k, cov_type='diag'):
 	observations = np.genfromtxt("../Observations.csv", delimiter = ',')
+	newObs = np.zeros((10000,1000,4))
 
+	for i in range(observations.shape[0]):
+		for j in range(observations.shape[1]):
+			if j < 3:
+				newObs[i, j, :] = observations[i, j]
+			else:
+				newObs[i, j, 0] = observations[i, j]
+				newObs[i, j, 1] = observations[i, j-1]
+				newObs[i, j, 2] = observations[i, j-2]
+				newObs[i, j, 3] = observations[i, j-3]
+
+	# np.savetxt('newObs,csv', newObs, fmt='%f', delimiter=",")
 	print "Starting HMM"
 	start_time = time.time()
 	model = hmm.GaussianHMM(n_components=k, covariance_type=cov_type)
 	X = observations.flatten().reshape(-1, 1)
 	lengths = [1000] * 10000
-	model.fit(X, lengths)
+	model.fit(X, ([[4]*1000]*10000))
 	print "Done running HMM"
 
 	joblib.dump(model, "hmm%i_%s.pkl" % (k, cov_type))
@@ -440,7 +453,36 @@ def hmm10():
 	predLocations = []
 	for state, direction in zip(last4000States, last4000Direction):
 		botCoord, topCoord = centroidMapping[state]
-		predLocation = topCoord if direction == 1 else botCoord
+		print topCoord
+		if direction == 1:
+			if state + 1 < 10:
+				_, topCoordnext = centroidMapping[state+1]
+				print topCoordnext
+				xtopnext, ytopnext = topCoordnext
+				print xtopnext, ytopnext
+				xtop, ytop = topCoord
+				print xtop, ytop
+
+				d_prime = math.sqrt((xtopnext - xtop)**2 + (ytopnext - ytop)**2)
+
+				predLocation = (xtop + (0.15 * (xtopnext - xtop) / d_prime), ytop + (0.15 * (ytopnext-ytop) / d_prime))
+
+			elif state == 9:
+				predLocation = botCoord
+		elif direction == 0:
+			if state - 1 > 0:
+				botCoordnext, _ = centroidMapping[state-1]
+				xbotnext, ybotnext = botCoordnext
+				xbot, ybot = botCoord
+
+				d_prime = math.sqrt((xbotnext - xbot)**2 + (ybotnext - ybot)**2)
+
+				predLocation = (xbot + (0.15 * (xbotnext - xbot) / d_prime), ybot + (0.15 * (ybotnext-ybot) / d_prime))
+
+			elif state == 0:
+				predLocation = topCoord
+		# predLocation = topCoord if direction == 1 else botCoord
+		quit()
 		predLocations.append(predLocation)
 
 	createSubmission(predLocations)
