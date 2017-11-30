@@ -194,8 +194,8 @@ def createLabelsDict():
 	return locations
 
 # Create submission file using 4000 (x, y) predicted location points
-def createSubmission(predLocations, k):
-	with open('hmm%i_submission_t.csv' % k, 'wb') as f:
+def createSubmission(predLocations, fileName):
+	with open(fileName, 'wb') as f:
 		f.write('Id,Value\n')
 
 		for i, (x, y) in enumerate(predLocations):
@@ -612,7 +612,7 @@ def hmm10():
 		quit()
 		predLocations.append(predLocation)
 
-	createSubmission(predLocations)
+	createSubmission(predLocations, './hmm10_submission.csv')
 
 # Write HMM 16 submission file
 def hmm16():
@@ -647,7 +647,7 @@ def hmm16():
 		predLocation = topCoord if direction == 1 else botCoord
 		predLocations.append(predLocation)
 
-	createSubmission(predLocations, 16)
+	createSubmission(predLocations, './hmm16_submission.csv')
 
 def newHmm16():
 	hmm16_pred_actual_mapping = {
@@ -694,7 +694,7 @@ def newHmm16():
 		y_coord = np.mean(np.array([y for _, y in points]))
 		predLocations.append((x_coord, y_coord))
 
-	createSubmission(predLocations, 16)
+	createSubmission(predLocations, './hmm16_submission.csv')
 
 
 def betterHmm16():
@@ -721,15 +721,15 @@ def betterHmm16():
 
 	last4000Direction = getLast4000Direction(predictedStates, hmm16_pred_actual_mapping)
 
-	predicted4000Angles = linearRegression()
-	# predicted4000Angles = getPredictedAngles() # TODO: THIS GIVES AND ERROR
+	# predicted4000Angles = linearRegression()
+	predicted4000Angles = getPredictedAngles() # TODO: THIS GIVES AND ERROR
 	anglesMapping = loadDict('./angle_mapping.csv')
 
 	predLocations = []
 	for angle, direction in zip(predicted4000Angles, last4000Direction):
 		predLoc = predictLocation(angle, direction, anglesMapping)
 
-	createSubmission(predLocations, 16)
+	createSubmission(predLocations, './hmm16_submission_test.csv')
 
 
 def graph(formula, x_range):
@@ -1050,10 +1050,10 @@ def getFinalDirections():
 if __name__ == '__main__':
 	np.set_printoptions(threshold=np.nan)
 
-	directions = getFinalDirections()
-	predictedAngles = loadDict('predicted_angles.pkl')
-	anglesMapping = loadDict('angles_dict.pkl')
-
+	# directions = getFinalDirections()
+	# predictedAngles = loadDict('predicted_angles.pkl')
+	# anglesMapping = loadDict('angles_dict.pkl')
+	betterHmm16()
 
 
 
