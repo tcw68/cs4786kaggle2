@@ -92,6 +92,10 @@ def plotPredictedStates(predictedStates, centroidMapping=None, numStates=10):
 		plt.plot(xCentroids, yCentroids, 'wo')
 
 	plt.plot([0, 2.5], [2.5, 0], linestyle='solid')
+	plt.plot([0, 3], [0, 3*tan(0.4039724)])
+	plt.plot([0, 3], [0, 3*tan(0.6232251)])
+	plt.plot([0, 2], [0, 2*tan(1.01099311)])
+	plt.plot([0, 1], [0, 1*tan(1.20409)])
 	plt.show()
 
 # Plot the distribution of observed angles
@@ -464,14 +468,17 @@ def circleLineCalculation(angle_predictions, centroidMapping):
 		for bot, top in centroidMapping.values():
 			print bot, top
 			xbot, ybot = bot
-			print xbot, ybot
 			xtop, ytop = top
-			print xtop, ytop
 
 			def findLocation(x, y):
 				A = tan(i)**2 + 1
+				print "A", A
 				B = 2*(-tan(i)*y - x)
+				print "B", B
 				C = y**2 - 0.15**2 + x**2
+				print "C", C
+
+				print B**2 - 4*A*C
 
 				if B**2 - 4*A*C < 0:
 					return sys.maxint, sys.maxint
@@ -948,22 +955,28 @@ def predictedAnglesLinearRegression():
 	m_top_x, c_top_x, predicted_top_x = performLinearRegression(angle_train_top, x_train_top, angle_predictions[6000:])
 	m_top_y, c_top_y, predicted_top_y = performLinearRegression(angle_train_top, y_train_top, angle_predictions[6000:])
 	
-	predictedStates = loadPredictedStatesCSV()
-	hmm10_pred_actual_mapping = {
-		0: 3,
-		1: 7,
-		2: 1,
-		3: 9,
-		4: 5,
+	predictedStates = loadPredictedStatesCSV(16)
+	hmm16_pred_actual_mapping = {
+		0: 1,
+		1: 11,
+		2: 6,
+		3: 14,
+		4: 9,
 		5: 4,
-		6: 6,
-		7: 2,
-		8: 8,
-		9: 0
+		6: 13,
+		7: 5,
+		8: 10,
+		9: 7,
+		10: 0,
+		11: 3,
+		12: 12,
+		13: 2,
+		14: 15,
+		15: 8
 	}
 
 	print "directions"
-	directions = getLast4000Direction(predictedStates, hmm10_pred_actual_mapping)
+	directions = getLast4000Direction(predictedStates, hmm16_pred_actual_mapping)
 	predLocations = []
 	for idx, d in enumerate(directions):
 		if d == 1:
@@ -972,7 +985,7 @@ def predictedAnglesLinearRegression():
 			predLocations.append((predicted_bot_x[idx][0], predicted_bot_y[idx][0]))
 
 	print "creating submission"
-	createSubmission(predLocations,10)
+	createSubmission(predLocations,"hmm16_submission_regression.csv")
 	# plt.plot(angle_train_bot, x_train_bot, 'ro')
 	# plt.plot([0,2], [c_bot_x, m_bot_x*2+c_bot_x])
 	# plt.plot(angle_train_bot, y_train_bot, 'bo')
@@ -1113,7 +1126,32 @@ def getFinalDirections():
 
 if __name__ == '__main__':
 	np.set_printoptions(threshold=np.nan)
-	circleLineCalculation()
+
+	# predictedAngles = getPredictedAngles()
+	predictedStates = loadPredictedStatesCSV(16)
+	hmm16_pred_actual_mapping = {
+		0: 1,
+		1: 11,
+		2: 6,
+		3: 14,
+		4: 9,
+		5: 4,
+		6: 13,
+		7: 5,
+		8: 10,
+		9: 7,
+		10: 0,
+		11: 3,
+		12: 12,
+		13: 2,
+		14: 15,
+		15: 8
+	}
+
+	centroidMapping = getStateCentroids(predictedStates, hmm16_pred_actual_mapping, 16)
+	plotPredictedStates(predictedStates, centroidMapping, 16)
+	quit()
+	circleLineCalculation(predictedAngles, centroidMapping)
 	quit()
 	# directions = getFinalDirections()
 	# predictedAngles = loadDict('predicted_angles.pkl')
