@@ -8,6 +8,7 @@ import time
 import pickle
 from random import randint
 import math
+from sklearn import linear_model
 
 ############
 # PLOTTING #
@@ -337,12 +338,12 @@ def runHMM(k, cov_type='diag'):
 	print "Starting HMM"
 	start_time = time.time()
 	model = hmm.GaussianHMM(n_components=k, covariance_type=cov_type)
-	X = observations.flatten().reshape(-1, 1)
+	X = newObs.flatten().reshape(-1, 1)
 	lengths = [1000] * 10000
-	model.fit(X, ([[4]*1000]*10000))
+	model.fit(X, lengths)
 	print "Done running HMM"
 
-	joblib.dump(model, "hmm%i_%s.pkl" % (k, cov_type))
+	joblib.dump(model, "hmm%i_%s_4angles.pkl" % (k, cov_type))
 	print("--- %s seconds ---" % (time.time() - start_time))
 
 # Get predictions from model
@@ -354,26 +355,35 @@ def getPredictedStates(model):
 
 	return np.reshape(predictedStates, (10000,1000))
 
+def getPredictedStatesNewObs(model):
+	observations = np.genfromtxt("../Observations.csv", delimiter = ',')
+	X = observations.flatten().reshape(-1, 1)
+	lengths = [[4]*1000] * 10000
+	predictedStates = model.predict(X, lengths)
+
+	return np.reshape(predictedStates, (10000,1000,4))
+   
+#Truncates/pads a float f to n decimal places without rounding
+
 def linearRegression():
-	sortedLabels = np.genfromtxt("../LabelSorted.csv", delimiter=',')
+	observations = np.genfromtxt("../Observations.csv", delimiter=',')
 	regr = linear_model.LinearRegression()
-	x_train = []
-	y_train = []
-	x_train.append(993)
-	x_train.append(999)
-	x_train.append(1000)
-	y_train.append((sortedLabels[297, 2], sortedLabels[297, 3]))
-	y_train.append((sortedLabels[298,2], sortedLabels[298, 3]))
-	y_train.append((sortedLabels[299, 2], sortedLabels[299, 3]))
+	x_train = [998, 999, 1000]
+	angle10001predictions = []
 
-	regr.fit(np.array(x_train).reshape(-1, 1), np.array(y_train).reshape(-1,1))
+	for i in range(observations.shape[0]):
+		y_train = []
+		for j in range(3,0,-1):
+			y_train.append(observations[i, -j])
+		regr.fit(np.array(x_train).reshape(-1, 1), np.array(y_train).reshape(-1,1))
+		angle10001predictions.append(round(regr.predict(1001)[0][0], 8))
 
-	y_pred = regr.predict(1001)
-	print y_pred
+	return angle10001predictions
 
 
 def run():
-	return
+	linearRegression()
+	# runHMM(4)
 	# observations = np.genfromtxt("../Observations.csv", delimiter = ',')
 	# writeLabelSortedCSV()
 
@@ -563,6 +573,7 @@ def getLabelledAngles():
 
 if __name__ == '__main__':
 	np.set_printoptions(threshold=np.nan)
+	run()
 
 	"""
 	First column of observations matrix
