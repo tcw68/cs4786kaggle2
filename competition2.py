@@ -9,6 +9,7 @@ import pickle
 from random import randint
 import operator
 from sklearn.metrics import mean_squared_error
+import sys
 from scipy.optimize import curve_fit
 from numpy import pi, r_
 from scipy import optimize
@@ -61,10 +62,10 @@ def plotPredictedStates(predictedStates, centroidMapping=None, numStates=10):
 	labels = np.genfromtxt("../Label.csv", delimiter=',')
 
 	# Map each state to a distinct RGB color
-	cmap = ['#ff1111', '#ff8b11', '#fff311', '#9bff11', '#11ff88', 
-			'#11f7ff', '#1160ff', '#7011ff', '#ff11e7', '#ff114c', 
-			'#000000', '#723416', '#0bc68b', '#9003af', '#a5a4a5', 
-			'#1a87ba', '#a64c79', '#8a9fc6', '#d0e596', '#036f4b', 
+	cmap = ['#ff1111', '#ff8b11', '#fff311', '#9bff11', '#11ff88',
+			'#11f7ff', '#1160ff', '#7011ff', '#ff11e7', '#ff114c',
+			'#000000', '#723416', '#0bc68b', '#9003af', '#a5a4a5',
+			'#1a87ba', '#a64c79', '#8a9fc6', '#d0e596', '#036f4b',
 			'#fe98b2', '#ccbaa9', '#708965', '#47574d', '#ffc300']
 
 	cmap = cmap[:numStates]
@@ -90,7 +91,7 @@ def plotPredictedStates(predictedStates, centroidMapping=None, numStates=10):
 
 		plt.plot(xCentroids, yCentroids, 'wo')
 
-	plt.plot([0, 2.5], [2.5, 0], linestyle='solid') 
+	plt.plot([0, 2.5], [2.5, 0], linestyle='solid')
 	plt.show()
 
 # Plot the distribution of observed angles
@@ -101,6 +102,47 @@ def plotObservedAngleDistribution():
 	angles = OM.flatten().reshape(-1, 1)
 	plt.hist(angles, normed=False, bins=50)
 	plt.show()
+
+# find mean of a list
+def mean(numbers):
+    return float(sum(numbers)) / max(len(numbers), 1)
+
+# Plot the distribution of observed angles
+def plotObservedAngleValues():
+	observations = np.genfromtxt("../Observations.csv", delimiter = ',')
+
+	amps=[]
+	amp=0
+	periods=[]
+	period=0
+	i=1
+	# for i in range(observations.shape[0]):
+	max=0
+	min=0
+	prevDeltaX=0
+	deltaX=0
+	for j in range(observations.shape[1]):
+		curr = observations[i,j]
+		prev = observations[i,j-1]
+		prevprev = observations[i,j-2]
+		if curr>max:
+			max=curr
+		elif curr<max and prev == max:
+			deltaX=j-1
+			periods.append(deltaX - prevDeltaX)
+			prevDeltaX = deltaX
+		if curr<min:
+			min=curr
+	amps.append(max - min)
+	amp = mean(amps)
+	period = mean(periods)
+	print "Amplitude: ", str(amp)
+	print "Period: ", str(period)
+	return
+
+
+	# 		plt.scatter(observations, normed=False, bins=50)
+	# plt.show()
 
 #################
 # PREPROCESSING #
@@ -150,10 +192,10 @@ def createLabelsDict():
 		locations[key] = orderedVal
 
 	return locations
- 
+
 # Create submission file using 4000 (x, y) predicted location points
 def createSubmission(predLocations, k):
-	with open('hmm%i_submission.csv' % k, 'wb') as f:
+	with open('hmm%i_submission_t.csv' % k, 'wb') as f:
 		f.write('Id,Value\n')
 
 		for i, (x, y) in enumerate(predLocations):
@@ -161,7 +203,7 @@ def createSubmission(predLocations, k):
 			yLine = ','.join([str(i+6001)+'y', str(y-1.5)])
 			f.write(xLine + '\n')
 			f.write(yLine + '\n')
-			
+
 
 #####################
 # LOADING / WRITING #
@@ -296,7 +338,7 @@ def calculateAverageAngleDiff():
 
 	return np.mean(avgAngleDiffs)
 
-# Get the two centroids for each state 
+# Get the two centroids for each state
 def getStateCentroids(predictedStates, mapping, numStates=10):
 	labels = np.genfromtxt("../Label.csv", delimiter=',')
 
@@ -377,7 +419,7 @@ def getPredictedStatesNewObs(model):
 	predictedStates = model.predict(X, lengths)
 
 	return np.reshape(predictedStates, (10000,1000,4))
-   
+
 #Truncates/pads a float f to n decimal places without rounding
 
 def linearRegression():
@@ -393,11 +435,98 @@ def linearRegression():
 		regr.fit(np.array(x_train).reshape(-1, 1), np.array(y_train).reshape(-1,1))
 		angle1001predictions.append(round(regr.predict(1001)[0][0], 8))
 
+	for idx, i in enumerate(angle1001predictions):
+		if i < 0.12031:
+			diff = 0.12031 - i
+			angle1001predictions[idx] = 0.12031 + diff
+		elif i > 1.4424:
+			diff = i - 1.4424
+			angle1001predictions[idx] = 1.4424 - diff
+
 	return angle1001predictions
 
 def evaluate(y_actual, y_predicted):
 	rms = sqrt(mean_squared_error(y_actual, y_predicted))
 	return rms
+
+def circleLineCalculation(angle_predictions, centroidMapping):
+	angle_predictions4000 = angle_predictions[6000:]
+	final_locations = {}
+
+
+	for idx, i in enumerate(angle_predictions4000):
+		for bot, top in centroidMapping.values():
+			print bot, top
+			xbot, ybot = bot
+			print xbot, ybot
+			xtop, ytop = top
+			print xtop, ytop
+
+			def findLocation(x, y):
+				A = tan(i)**2 + 1
+				B = 2*(-tan(i)*y - x)
+				C = y**2 - 0.15**2 + x**2
+
+				if B**2 - 4*A*C < 0:
+					return sys.maxint, sys.maxint
+				else:
+					x_intersect1 = -B + sqrt(B**2 - 4*A*C) / 2*A
+					x_intersect2 = -B - sqrt(B**2 - 4*A*C) / 2*A
+					y_intersect1 = tan(i) * x_intersect1
+					y_intersect2 = tan(i) * x_intersect2
+
+					x_final = (x_intersect1 + x_intersect2) / 2
+					y_final = (y_intersect1 + y_intersect2) / 2
+
+					return x_final, y_final
+
+			x_bot_final, y_bot_final = findLocation(xbot, ybot)
+			x_top_final, y_top_final = findLocation(xtop, ytop)
+
+			if x_bot_final != sys.maxint and y_bot_final != sys.maxint:
+				final_locations.setdefault(idx, []).append((x_bot_final, y_bot_final))
+			elif x_top_final != sys.maxint and y_top_final != sys.maxint:
+				final_locations.setdefault(idx, []).append((x_top_final, y_top_final))
+			else:
+				continue
+		quit()
+
+	for i, v in final_locations.items():
+		print (i, v)
+
+	return final_locations
+
+def run():
+	angle_predictions = linearRegression()
+	centroidMapping = loadDict('hmm16_centroid_mapping.csv')
+	final_locations = circleLineCalculation(angle_predictions, centroidMapping)
+	# runHMM(4)
+	# observations = np.genfromtxt("../Observations.csv", delimiter = ',')
+	# writeLabelSortedCSV()
+
+	# print "starting hmm"
+	# start_time = time.time()
+	# k = 20
+	# model = hmm.GaussianHMM(n_components=k)
+	# model.fit(observations)
+	# print "done running hmm"
+	# joblib.dump(model, "hmm"+str(k)+".pkl")
+	# print("--- %s seconds ---" % (time.time() - start_time))
+	# model = joblib.load("hmm20.pkl")
+	# print model.predict(observations)
+	# sortedLabels = np.genfromtxt("../LabelSorted.csv", delimiter=',')
+	# x = np.array([993, 999, 1000])
+	# y1 = np.array([sortedLabels[297, 2], sortedLabels[298, 2], sortedLabels[299,2]])
+	# y2 = np.array([sortedLabels[297, 3], sortedLabels[298, 3], sortedLabels[299,3]])
+	# A = np.vstack([x, np.ones(len(x))]).T
+
+	# m1, c1 = np.linalg.lstsq(A, y1)[0]
+	# m2, c2 = np.linalg.lstsq(A, y2)[0]
+
+	# x = m1 * 1001 + c1
+	# y = m2 * 1001 + c1
+	# print x, y
+	# # linearRegression()
 
 # Get whether the last 4000 points are increasing or decreasing states
 def getLast4000Direction(predictedStates, mapping):
@@ -520,10 +649,93 @@ def hmm16():
 
 	createSubmission(predLocations, 16)
 
-def graph(formula, x_range):  
-    x = np.array(x_range)  
+def newHmm16():
+	hmm16_pred_actual_mapping = {
+		0: 1,
+		1: 11,
+		2: 6,
+		3: 14,
+		4: 9,
+		5: 4,
+		6: 13,
+		7: 5,
+		8: 10,
+		9: 7,
+		10: 0,
+		11: 3,
+		12: 12,
+		13: 2,
+		14: 15,
+		15: 8
+	}
+
+	predictedStates = loadPredictedStatesCSV(16)
+
+	last4000Direction = getLast4000Direction(predictedStates, hmm16_pred_actual_mapping)
+	observations = np.genfromtxt("../Observations.csv", delimiter = ',')
+	last4000Angles = observations[6000:,-1]
+
+	anglesMapping = loadDict('./angle_mapping.csv')
+	angles = sorted(list(anglesMapping.keys()))
+
+	predLocations = []
+	angleDelta = 0.05
+	angleBuffer = 0.025
+	for angle, direction in zip(last4000Angles, last4000Direction):
+		angle += angleDelta * direction
+		angleRange = (angle - angleBuffer, angle + angleBuffer)
+		points = []
+		for a in angles:
+			if a >= angleRange[0] and a <= angleRange[1]:
+				section = 'top' if direction == 1 else 'bot'
+				points += anglesMapping[a][section]
+
+		x_coord = np.mean(np.array([x for x, _ in points]))
+		y_coord = np.mean(np.array([y for _, y in points]))
+		predLocations.append((x_coord, y_coord))
+
+	createSubmission(predLocations, 16)
+
+
+def betterHmm16():
+	hmm16_pred_actual_mapping = {
+		0: 1,
+		1: 11,
+		2: 6,
+		3: 14,
+		4: 9,
+		5: 4,
+		6: 13,
+		7: 5,
+		8: 10,
+		9: 7,
+		10: 0,
+		11: 3,
+		12: 12,
+		13: 2,
+		14: 15,
+		15: 8
+	}
+
+	predictedStates = loadPredictedStatesCSV(16)
+
+	last4000Direction = getLast4000Direction(predictedStates, hmm16_pred_actual_mapping)
+
+	predicted4000Angles = linearRegression()
+	# predicted4000Angles = getPredictedAngles() # TODO: THIS GIVES AND ERROR
+	anglesMapping = loadDict('./angle_mapping.csv')
+
+	predLocations = []
+	for angle, direction in zip(predicted4000Angles, last4000Direction):
+		predLoc = predictLocation(angle, direction, anglesMapping)
+
+	createSubmission(predLocations, 16)
+
+
+def graph(formula, x_range):
+    x = np.array(x_range)
     y = eval(formula)
-    plt.plot(x, y)  
+    plt.plot(x, y)
     # plt.show()
 
 # labelledAngles is dictionary of key = angle and value = (run, step, (x, y))
@@ -571,6 +783,28 @@ def findPeaksValleys(angles):
 		peaks.append((i + maxIdx, maxAngle))
 
 	return (peaks, valleys)
+
+# Given the angle and direction of movement, predict the x, y location
+def predictLocation(angle, direction, anglesMapping):
+	angles = sorted(list(anglesMapping.keys()))
+
+	angleBuffer = 0.025
+	angleRange = (angle - angleBuffer, angle + angleBuffer)
+	points = []
+	for a in angles:
+		if a >= angleRange[0] and a <= angleRange[1]:
+			section = 'top' if direction == 1 else 'bot'
+			points += anglesMapping[a][section]
+
+	x_c = np.mean(np.array([x for x, _ in points]))
+	y_c = np.mean(np.array([y for _, y in points]))
+
+	# Project onto line y = tan(angle) * x
+	c = y_c + x_c * tan(angle)
+	x_p = c / (tan(angle) + a / tan(angle))
+	y_p = tan(angle) * x_p
+
+	return (x_p, y_p)
 
 # Return a RMSE score given 10000 x 1000 predictions
 def evaluate(predictions):
@@ -705,10 +939,6 @@ def getDirection(angleSeq):
 
 	return direction
 
-# Given the angle, predict the (x, y) location
-def predictLocation(angles):
-	pass
-
 # Find closest angle to given angle
 def findClosestAngle(angle):
 	anglesDict = loadDict('angles_dict.pkl')
@@ -789,82 +1019,40 @@ def plotXYAngle(labelsDict, run, flipY=False):
 def plotMidLine():
 	plt.plot([avgAngle, avgAngle], [0, 3], linestyle='solid')
 
+# Returns dictionary with key as angle and value as {bot: [], top: []}, holding
+# arrays of labeled locations on that angle
+def mapAnglesToLocations():
+	observations = np.genfromtxt("../Observations.csv", delimiter = ',')
+	labels = np.genfromtxt("../Label.csv", delimiter=',')
+
+	angleMapping = {}
+	for label in labels:
+		run, step, x, y = label
+		x, y = x + 1.5, y + 1.5
+		angle = observations[int(run)-1, int(step)-1]
+		section =  'top' if (y > 2.5 - x) else 'bot'
+		angleMapping.setdefault(angle, {'bot': [], 'top': []})[section].append((x,y))
+
+	# writeDict(angleMapping, './angle_mapping.csv')
+	return angleMapping
+
+# Get most likely direction of 1001th point
+def getFinalDirections():
+	OM = createObservationMatrix()
+	directions = []
+	for row in OM:
+		lastAngleSeq = row[-5:]
+		direction = getDirection(lastAngleSeq)
+		directions.append(direction)
+
+	return directions
+
 if __name__ == '__main__':
 	np.set_printoptions(threshold=np.nan)
 
-	OM = createObservationMatrix()
-
-	# predictedAngles = loadDict('predicted_angles.pkl')
-	# finalAngles = [findClosestAngle(a) for a in predictedAngles]
-
-	# directions = []
-	# for row in OM:
-	# 	lastAngleSeq = row[-5:]
-	# 	direction = getDirection(lastAngleSeq)
-	# 	directions.append(direction)
-
-	# labels = np.genfromtxt("../LabelSorted.csv", delimiter=',')
-
-	# xs, ys, angles = [], [], []
-	# for label in labels:
-	# 	run, step, x, y = label
-	# 	angle = OM[int(run)-1, int(step)-1]
-	# 	xs.append(x)
-	# 	ys.append(y)
-	# 	angles.append(angle)
-
-	labelsDict = createLabelsDict()
-
-	avgAngle = 0.78153661932199991
-
-
-
-	# print "plotting..."
-
-	# for x, angle in zip(xs, angles):
-	# 	plt.scatter(x, angle, color='red', marker='.')
-
-	# for y, angle in zip(ys, angles):
-	# 	plt.scatter(y, angle, color='blue', marker='.')	
-
-	# plt.plot(xs, angles)
-
-	# plt.plot(ys, angles)
-	# plt.show()
-
-
-
-
-	
-
-
-
-
-
-
-
-
-
-	
-
-
-
-
-
-
-
-
-
-
-
-	
-
-
-
-
-
-
-	
+	directions = getFinalDirections()
+	predictedAngles = loadDict('predicted_angles.pkl')
+	anglesMapping = loadDict('angles_dict.pkl')
 
 
 
@@ -881,6 +1069,29 @@ if __name__ == '__main__':
 
 
 
-	
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
