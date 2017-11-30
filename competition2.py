@@ -73,8 +73,15 @@ def plotPredictedStates(predictedStates, centroidMapping=None, numStates=10):
 # Plot angles at all steps for run i (starting at 1)
 def plotAnglesAtRun(i):
 	OM = createObservationMatrix()
-	run = OM[i-1]
-	plt.plot(run)
+	labelsDict = createLabelsDict()
+
+	angles = OM[i-1]
+	plt.plot(angles)
+
+	steps = labelsDict[i]
+	for step, _, angle in steps:
+		plt.scatter(step, angle, color='red', marker='.')
+
 	plt.show()
 
 # Plot the distribution of observed angles
@@ -571,8 +578,10 @@ if __name__ == '__main__':
 	Average angle: 0.83614049900000009
 	Min angle: 0.75205999999999995
 	Max angle: 0.93271000000000004
-
 	"""
+
+	
+
 
 
 
