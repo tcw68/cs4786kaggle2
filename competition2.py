@@ -396,12 +396,6 @@ def evaluate(y_actual, y_predicted):
 	rms = sqrt(mean_squared_error(y_actual, y_predicted))
 	return rms
 
-def circleLineCalculation(angle_predictions):
-	angle_predictions4000 = angle_predictions[6000:]
-
-	for i in angle_predictions4000:
-		 = math.tan(angle_predictions) * x
-
 # Get whether the last 4000 points are increasing or decreasing states
 def getLast4000Direction(predictedStates, mapping):
 	last4000last5 = np.zeros((4000, 5))
