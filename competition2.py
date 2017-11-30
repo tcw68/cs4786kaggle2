@@ -9,6 +9,7 @@ import pickle
 from random import randint
 from sklearn import linear_model
 from sklearn.metrics import mean_squared_error
+import sys
 
 ############
 # PLOTTING #
@@ -403,8 +404,6 @@ def getPredictedStatesNewObs(model):
 	predictedStates = model.predict(X, lengths)
 
 	return np.reshape(predictedStates, (10000,1000,4))
-   
-#Truncates/pads a float f to n decimal places without rounding
 
 def linearRegression():
 	observations = np.genfromtxt("../Observations.csv", delimiter=',')
@@ -419,21 +418,72 @@ def linearRegression():
 		regr.fit(np.array(x_train).reshape(-1, 1), np.array(y_train).reshape(-1,1))
 		angle1001predictions.append(round(regr.predict(1001)[0][0], 8))
 
+	for idx, i in enumerate(angle1001predictions):
+		if i < 0.12031:
+			diff = 0.12031 - i
+			angle1001predictions[idx] = 0.12031 + diff
+		elif i > 1.4424:
+			diff = i - 1.4424 
+			angle1001predictions[idx] = 1.4424 - diff
+
 	return angle1001predictions
 
 def evaluate(y_actual, y_predicted):
 	rms = sqrt(mean_squared_error(y_actual, y_predicted))
 	return rms
 
-def circleLineCalculation(angle_predictions):
+
+
+def circleLineCalculation(angle_predictions, centroidMapping):
 	angle_predictions4000 = angle_predictions[6000:]
+	final_locations = {}
 
-	for i in angle_predictions4000:
-		 = math.tan(angle_predictions) * x
 
+	for idx, i in enumerate(angle_predictions4000):
+		for bot, top in centroidMapping.values():
+			print bot, top
+			xbot, ybot = bot
+			print xbot, ybot
+			xtop, ytop = top
+			print xtop, ytop
+
+			def findLocation(x, y):	
+				A = tan(i)**2 + 1
+				B = 2*(-tan(i)*y - x)
+				C = y**2 - 0.15**2 + x**2
+
+				if B**2 - 4*A*C < 0:
+					return sys.maxint, sys.maxint
+				else:
+					x_intersect1 = -B + sqrt(B**2 - 4*A*C) / 2*A
+					x_intersect2 = -B - sqrt(B**2 - 4*A*C) / 2*A
+					y_intersect1 = tan(i) * x_intersect1
+					y_intersect2 = tan(i) * x_intersect2
+
+					x_final = (x_intersect1 + x_intersect2) / 2
+					y_final = (y_intersect1 + y_intersect2) / 2
+				
+					return x_final, y_final
+
+			x_bot_final, y_bot_final = findLocation(xbot, ybot)
+			x_top_final, y_top_final = findLocation(xtop, ytop)
+
+			if x_bot_final != sys.maxint and y_bot_final != sys.maxint:
+				final_locations.setdefault(idx, []).append((x_bot_final, y_bot_final))
+			elif x_top_final != sys.maxint and y_top_final != sys.maxint:
+				final_locations.setdefault(idx, []).append((x_top_final, y_top_final))
+			else:
+				continue
+		quit()
+
+	for i, v in final_locations.items():
+		print (i, v)
+	return final_locations
 
 def run():
-	linearRegression()
+	angle_predictions = linearRegression()
+	centroidMapping = loadDict('hmm16_centroid_mapping.csv')
+	final_locations = circleLineCalculation(angle_predictions, centroidMapping)
 	# runHMM(4)
 	# observations = np.genfromtxt("../Observations.csv", delimiter = ',')
 	# writeLabelSortedCSV()
@@ -635,7 +685,7 @@ if __name__ == '__main__':
 	Max angle: 0.93271000000000004
 
 	"""
-	plotObservedAngleValues()
+	# plotObservedAngleValues()
 
 
 
