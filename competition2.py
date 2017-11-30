@@ -103,47 +103,6 @@ def plotObservedAngleDistribution():
 	plt.hist(angles, normed=False, bins=50)
 	plt.show()
 
-# find mean of a list
-def mean(numbers):
-    return float(sum(numbers)) / max(len(numbers), 1)
-
-# Plot the distribution of observed angles
-def plotObservedAngleValues():
-	observations = np.genfromtxt("../Observations.csv", delimiter = ',')
-
-	amps=[]
-	amp=0
-	periods=[]
-	period=0
-	i=1
-	# for i in range(observations.shape[0]):
-	max=0
-	min=0
-	prevDeltaX=0
-	deltaX=0
-	for j in range(observations.shape[1]):
-		curr = observations[i,j]
-		prev = observations[i,j-1]
-		prevprev = observations[i,j-2]
-		if curr>max:
-			max=curr
-		elif curr<max and prev == max:
-			deltaX=j-1
-			periods.append(deltaX - prevDeltaX)
-			prevDeltaX = deltaX
-		if curr<min:
-			min=curr
-	amps.append(max - min)
-	amp = mean(amps)
-	period = mean(periods)
-	print "Amplitude: ", str(amp)
-	print "Period: ", str(period)
-	return
-
-
-	# 		plt.scatter(observations, normed=False, bins=50)
-	# plt.show()
-
 #################
 # PREPROCESSING #
 #################
@@ -400,7 +359,7 @@ def runHMM(k, cov_type='diag'):
 	model.fit(X, lengths)
 	print "Done running HMM"
 
-	joblib.dump(model, "hmm%i_%s_4angles.pkl" % (k, cov_type))
+	joblib.dump(model, "hmm%i_%s.pkl" % (k, cov_type))
 	print("--- %s seconds ---" % (time.time() - start_time))
 
 # Get predictions from model
@@ -784,28 +743,6 @@ def findPeaksValleys(angles):
 
 	return (peaks, valleys)
 
-# Given the angle and direction of movement, predict the x, y location
-def predictLocation(angle, direction, anglesMapping):
-	angles = sorted(list(anglesMapping.keys()))
-
-	angleBuffer = 0.025
-	angleRange = (angle - angleBuffer, angle + angleBuffer)
-	points = []
-	for a in angles:
-		if a >= angleRange[0] and a <= angleRange[1]:
-			section = 'top' if direction == 1 else 'bot'
-			points += anglesMapping[a][section]
-
-	x_c = np.mean(np.array([x for x, _ in points]))
-	y_c = np.mean(np.array([y for _, y in points]))
-
-	# Project onto line y = tan(angle) * x
-	c = y_c + x_c * tan(angle)
-	x_p = c / (tan(angle) + a / tan(angle))
-	y_p = tan(angle) * x_p
-
-	return (x_p, y_p)
-
 # Return a RMSE score given 10000 x 1000 predictions
 def evaluate(predictions):
 	labels = np.genfromtxt("../LabelSorted.csv", delimiter=',')
@@ -889,8 +826,8 @@ def plotAnglesAtRun(run):
 	plt.plot([1, 1001], [avgAngle, avgAngle], linestyle='solid')
 
 	# Plot division lines
-	# for i in range(0, angles.shape[0], 50):
-	# 	plt.plot([i, i], [0, 1.4], linestyle='solid')
+	for i in range(0, angles.shape[0], 50):
+		plt.plot([i, i], [0, 1.4], linestyle='solid')
 
 	# Plot peaks and valleys
 	peaks, valleys = findPeaksValleys(angles)
@@ -902,10 +839,10 @@ def plotAnglesAtRun(run):
 		plt.scatter(x, y, color='green', marker='.')
 
 	# Plot fitted function
-	amplitude, period, hShift, vShift = getGuessParameters(peaks, valleys)
-	fit_amplitude, fit_period, fit_hShift, fit_vShift = getFittedParameters(angles, amplitude, period, hShift, vShift)
-	fit_ys = [fit_amplitude * np.sin(fit_period * (x + fit_hShift)) + fit_vShift for x in xs]
-	plt.plot(xs, fit_ys)
+	# amplitude, period, hShift, vShift = getGuessParameters(peaks, valleys)
+	# fit_amplitude, fit_period, fit_hShift, fit_vShift = getFittedParameters(angles, amplitude, period, hShift, vShift)
+	# fit_ys = [fit_amplitude * np.sin(fit_period * (x + fit_hShift)) + fit_vShift for x in xs]
+	# plt.plot(xs, fit_ys)
 
 	plt.show()
 
@@ -1036,6 +973,28 @@ def mapAnglesToLocations():
 	# writeDict(angleMapping, './angle_mapping.csv')
 	return angleMapping
 
+# Given the angle and direction of movement, predict the x, y location
+def predictLocation(angle, direction, anglesMapping):
+	angles = sorted(list(anglesMapping.keys()))
+
+	angleBuffer = 0.025
+	angleRange = (angle - angleBuffer, angle + angleBuffer)
+	points = []
+	for a in angles:
+		if a >= angleRange[0] and a <= angleRange[1]:
+			section = 'top' if direction == 1 else 'bot'
+			points += anglesMapping[a][section]
+
+	x_c = np.mean(np.array([x for x, _ in points]))
+	y_c = np.mean(np.array([y for _, y in points]))
+
+	# Project onto line y = tan(angle) * x
+	c = y_c + x_c * tan(angle)
+	x_p = c / (tan(angle) + a / tan(angle))
+	y_p = tan(angle) * x_p
+
+	return (x_p, y_p)
+
 # Get most likely direction of 1001th point
 def getFinalDirections():
 	OM = createObservationMatrix()
@@ -1047,12 +1006,69 @@ def getFinalDirections():
 
 	return directions
 
+# Find center point from labelled data
+def findCenterPoint():
+	labels = np.genfromtxt("../LabelSorted.csv", delimiter=',')
+
+	xs, ys = [], []
+	for label in labels:
+		run, step, x, y = label
+		xs.append(x+1.5)
+		ys.append(y+1.5)
+
+	avgX = np.mean(xs)
+	avgY = np.mean(ys)
+
+	return (avgX, avgY)
+
+# Get ellipse equation for donut
+def getEllipseEquation(x):
+	centerX = 1.50203568876
+	centerY = 1.49502535473
+
+	minY = 0.50338353166532002
+	minX = 0.45720515002048062
+
+	a = centerX - minX # 1.0448305387395194
+	b = centerY - minY # 0.9916418230646801
+
+	y1 = sqrt((b ** 2) * (1 - (((x - centerX) ** 2) / (a ** 2)))) + centerY
+	y2 = (-1 * sqrt((b ** 2) * (1 - (((x - centerX) ** 2) / (a ** 2))))) + centerY
+
+	return (y1, y2)
+
 if __name__ == '__main__':
 	np.set_printoptions(threshold=np.nan)
 
-	directions = getFinalDirections()
-	predictedAngles = loadDict('predicted_angles.pkl')
-	anglesMapping = loadDict('angles_dict.pkl')
+	
+
+	# directions = getFinalDirections()
+	# predictedAngles = loadDict('predicted_angles.pkl')
+	# anglesMapping = loadDict('angle_mapping.csv')
+
+	# predLocations = []
+	# for angle, direction in zip(predictedAngles, directions):
+	# 	predLoc = predictLocation(angle, direction, anglesMapping)
+	# 	predLocations.append(predLoc)
+
+	# writeDict(predLocations, 'pred_locations.pkl')
+	# plotAnglesAtRun(1)
+	# centroidMapping = loadDict('hmm10_centroid_mapping.pkl')
+
+	predictedStates = loadPredictedStatesCSV(10)
+	plotPredictedStates(predictedStates)
+
+
+
+	
+
+
+
+
+
+
+	
+
 
 
 
