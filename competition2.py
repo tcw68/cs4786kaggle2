@@ -94,6 +94,10 @@ def plotPredictedStates(predictedStates, centroidMapping=None, numStates=10):
 		plt.plot(xCentroids, yCentroids, 'wo')
 
 	plt.plot([0, 2.5], [2.5, 0], linestyle='solid')
+	plt.plot([0, 3], [0, 3*tan(0.4039724)])
+	plt.plot([0, 3], [0, 3*tan(0.6232251)])
+	plt.plot([0, 2], [0, 2*tan(1.01099311)])
+	plt.plot([0, 1], [0, 1*tan(1.20409)])
 	plt.show()
 
 # Plot the distribution of observed angles
@@ -156,6 +160,7 @@ def createLabelsDict():
 
 # Create submission file using 4000 (x, y) predicted location points
 def createSubmission(predLocations, fileName):
+	print 'creating submission file...'
 	with open(fileName, 'wb') as f:
 		f.write('Id,Value\n')
 
@@ -464,14 +469,17 @@ def circleLineCalculation(angle_predictions, centroidMapping):
 		for bot, top in centroidMapping.values():
 			print bot, top
 			xbot, ybot = bot
-			print xbot, ybot
 			xtop, ytop = top
-			print xtop, ytop
 
 			def findLocation(x, y):
 				A = tan(i)**2 + 1
+				print "A", A
 				B = 2*(-tan(i)*y - x)
+				print "B", B
 				C = y**2 - 0.15**2 + x**2
+				print "C", C
+
+				print B**2 - 4*A*C
 
 				if B**2 - 4*A*C < 0:
 					return sys.maxint, sys.maxint
@@ -693,18 +701,20 @@ def betterHmm16():
 	}
 
 	predictedStates = loadPredictedStatesCSV(16)
-
 	last4000Direction = getLast4000Direction(predictedStates, hmm16_pred_actual_mapping)
 
-	# predicted4000Angles = linearRegression()
-	predicted4000Angles = getPredictedAngles() # TODO: THIS GIVES AND ERROR
+	print 'getting predicted angles...'
+	# predicted4000Angles = getPredictedAngles()
+	predicted4000Angles = getPredictedAngles2()
 	anglesMapping = loadDict('./angle_mapping.csv')
 
+	print 'predicting locations...'
 	predLocations = []
 	for angle, direction in zip(predicted4000Angles, last4000Direction):
 		predLoc = predictLocation(angle, direction, anglesMapping)
+		predLocations.append(predLoc)
 
-	createSubmission(predLocations, './hmm16_submission_test.csv')
+	createSubmission(predLocations, './hmm16_submission_pred_angles_2.csv')
 
 
 def graph(formula, x_range):
@@ -759,6 +769,28 @@ def findPeaksValleys(angles):
 
 	return (peaks, valleys)
 
+# Given the angle and direction of movement, predict the x, y location
+def predictLocation(angle, direction, anglesMapping):
+	angles = sorted(list(anglesMapping.keys()))
+
+	angleBuffer = 0.025
+	angleRange = (angle - angleBuffer, angle + angleBuffer)
+	points = []
+	for a in angles:
+		if a >= angleRange[0] and a <= angleRange[1]:
+			section = 'top' if direction == 1 else 'bot'
+			points += anglesMapping[a][section]
+
+	x_c = np.mean(np.array([x for x, _ in points]))
+	y_c = np.mean(np.array([y for _, y in points]))
+
+	# Project onto line y = tan(angle) * x
+	c = y_c + x_c * tan(angle)
+	x_p = c / (tan(angle) + a / tan(angle))
+	y_p = tan(angle) * x_p
+
+	return (x_p, y_p)
+
 # Return a RMSE score given 10000 x 1000 predictions
 def evaluate(predictions):
 	labels = np.genfromtxt("../LabelSorted.csv", delimiter=',')
@@ -799,7 +831,7 @@ def getGuessParameters(peaks, valleys):
 
 # Get the fitted parameters
 def getFittedParameters(data, guess_amplitude, guess_period, guess_hShift, guess_vShift):
-	t = np.linspace(1, 1000, 1000, dtype='int32')
+	t = np.linspace(1, 1000, 1000, dtype = 'int32')
 
 	# First estimate
 	data_guess = guess_amplitude * np.sin(guess_period * (t + guess_hShift)) + guess_vShift
@@ -875,6 +907,31 @@ def getPredictedAngles():
 
 	return predAngles
 
+# Get 1001th predicted angles
+def getPredictedAngles2():
+	OM = createObservationMatrix()[:, -4:]
+	angleBuckets = [0.4039724, 0.6232251, 1.01099311, 1.20409]
+
+	predAngles = []
+	for run in OM:
+		predAngle = 0
+		if run[3] < angleBuckets[0] or run[3] > angleBuckets[3]:
+			# Avg angle
+			predAngle = np.mean(run[1:])
+		elif run[3] < angleBuckets[1] or run[3] > angleBuckets[2]:
+			# Avg delta
+			diff = run[3]-run[2] + run[2]-run[1] + run[1]-run[0]
+			diff /= 3
+			predAngle = run[3] + diff
+		else:
+			# Middle zone, keep delta trend
+			prevDelta = run[3]-run[2]
+			predAngle = run[3] + prevDelta
+
+		predAngles.append(predAngle)
+
+	return np.array(predAngles)
+
 def performLinearRegression(x_train, y_train, x_test):
 	regr = linear_model.LinearRegression()
 	regr.fit(np.array(x_train).reshape(-1, 1), np.array(y_train).reshape(-1,1))
@@ -906,7 +963,7 @@ def predictedAnglesLinearRegression():
 						y_train_top.append(y)
 						angle_train_top.append(observations[i,j])
 						counterTop -= 1
-			
+
 			if counterBot != 0:
 				if x == 0.0 and y == 0.0:
 					continue
@@ -925,23 +982,29 @@ def predictedAnglesLinearRegression():
 	m_bot_y, c_bot_y, predicted_bot_y = performLinearRegression(angle_train_bot, y_train_bot, angle_predictions[6000:])
 	m_top_x, c_top_x, predicted_top_x = performLinearRegression(angle_train_top, x_train_top, angle_predictions[6000:])
 	m_top_y, c_top_y, predicted_top_y = performLinearRegression(angle_train_top, y_train_top, angle_predictions[6000:])
-	
-	predictedStates = loadPredictedStatesCSV()
-	hmm10_pred_actual_mapping = {
-		0: 3,
-		1: 7,
-		2: 1,
-		3: 9,
-		4: 5,
+
+	predictedStates = loadPredictedStatesCSV(16)
+	hmm16_pred_actual_mapping = {
+		0: 1,
+		1: 11,
+		2: 6,
+		3: 14,
+		4: 9,
 		5: 4,
-		6: 6,
-		7: 2,
-		8: 8,
-		9: 0
+		6: 13,
+		7: 5,
+		8: 10,
+		9: 7,
+		10: 0,
+		11: 3,
+		12: 12,
+		13: 2,
+		14: 15,
+		15: 8
 	}
 
 	print "directions"
-	directions = getLast4000Direction(predictedStates, hmm10_pred_actual_mapping)
+	directions = getLast4000Direction(predictedStates, hmm16_pred_actual_mapping)
 	predLocations = []
 	for idx, d in enumerate(directions):
 		if d == 1:
@@ -950,7 +1013,7 @@ def predictedAnglesLinearRegression():
 			predLocations.append((predicted_bot_x[idx][0], predicted_bot_y[idx][0]))
 
 	print "creating submission"
-	createSubmission(predLocations,10)
+	createSubmission(predLocations,"hmm16_submission_regression.csv")
 	# plt.plot(angle_train_bot, x_train_bot, 'ro')
 	# plt.plot([0,2], [c_bot_x, m_bot_x*2+c_bot_x])
 	# plt.plot(angle_train_bot, y_train_bot, 'bo')
@@ -1111,6 +1174,42 @@ def getFinalDirections():
 
 	return directions
 
+def dist(p1, p2):
+	x_d = mean_squared_error([p1[0]], [p2[0]])
+	y_d = mean_squared_error([p2[1]], [p2[1]])
+	return sqrt(x_d + y_d)
+
+def compareSubmissions(filename1, filename2):
+	with open(filename1, 'r') as f1:
+		with open(filename2, 'r') as f2:
+			lines1 = f1.readlines()
+			lines2 = f2.readlines()
+
+			totalDistance = 0
+			for i in range(1, len(lines1), 2):
+				x1 = float(lines1[i].split(',')[1])
+				y1 = float(lines1[i+1].split(',')[1])
+				x2 = float(lines2[i].split(',')[1])
+				y2 = float(lines2[i+1].split(',')[1])
+
+				totalDistance += dist((x1, y1), (x2, y2))
+			totalDistance = sqrt(totalDistance / (len(lines1)-1))
+
+			print 'Total distance', totalDistance
+
+def compare1001AngleTo1000Angle():
+	# predAngles = linearRegression()
+	predAngles = getPredictedAngles2()
+	OM = createObservationMatrix()[:, -3:]
+
+	with open('./angle_comparison.csv', 'wb') as f:
+		for idx, angle in enumerate(predAngles):
+			array = list(OM[idx])
+			array.append(angle)
+
+			f.write(','.join(map(str, array)))
+			f.write('\n')
+
 # Find center point from labelled data
 def findCenterPoint():
 	labels = np.genfromtxt("../LabelSorted.csv", delimiter=',')
@@ -1158,11 +1257,30 @@ if __name__ == '__main__':
 	# predictedStates = loadTruncPredictedStatesCSV(20)
 	# plotPredictedStates(predictedStates, None, 20)
 	
+	# predictedAngles = getPredictedAngles()
 
+	numRuns = 100
 
+	predAngles = getPredictedAngles2()
+	predAngles = predAngles[:numRuns]
 
+	observations = np.genfromtxt("../Observations.csv", delimiter = ',')
+	observations = observations[:numRuns]
 
+	obs = np.concatenate((observations, predAngles), axis=1)
 
+	# print "Starting HMM"
+	# start_time = time.time()
+	# k = 20
+	# cov_type = 'diag'
+	# model = hmm.GaussianHMM(n_components=k, covariance_type=cov_type)
+	# X = obs.flatten().reshape(-1, 1)
+	# lengths = [1001] * numRuns
+	# model.fit(X, lengths)
+	# print "Done running HMM"
+
+	# joblib.dump(model, "trunc_hmm%i_%s_run%i.pkl" % (k, cov_type, numRuns))
+	# print("--- %s seconds ---" % (time.time() - start_time))
 
 
 
