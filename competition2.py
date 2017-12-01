@@ -667,21 +667,51 @@ def newHmm16():
 
 	predLocations = []
 	angleDelta = 0.05
-	angleBuffer = 0.025
 	for angle, direction in zip(last4000Angles, last4000Direction):
 		angle += angleDelta * direction
-		angleRange = (angle - angleBuffer, angle + angleBuffer)
-		points = []
-		for a in angles:
-			if a >= angleRange[0] and a <= angleRange[1]:
-				section = 'top' if direction == 1 else 'bot'
-				points += anglesMapping[a][section]
+		predLoc = predictLocation(angle, direction, anglesMapping)
+		predLocations.append(predLoc)
 
-		x_coord = np.mean(np.array([x for x, _ in points]))
-		y_coord = np.mean(np.array([y for _, y in points]))
-		predLocations.append((x_coord, y_coord))
+	createSubmission(predLocations, './hmm16_submission_dup.csv')
 
-	createSubmission(predLocations, './hmm16_submission.csv')
+def unitHmm16():
+	hmm16_pred_actual_mapping = {
+		0: 1,
+		1: 11,
+		2: 6,
+		3: 14,
+		4: 9,
+		5: 4,
+		6: 13,
+		7: 5,
+		8: 10,
+		9: 7,
+		10: 0,
+		11: 3,
+		12: 12,
+		13: 2,
+		14: 15,
+		15: 8
+	}
+
+	predictedStates = loadPredictedStatesCSV(16)
+
+	last4000Direction = getLast4000Direction(predictedStates, hmm16_pred_actual_mapping)
+
+	print 'getting predicted angles...'
+	# predicted4000Angles = getPredictedAngles2()
+	observations = np.genfromtxt("../Observations.csv", delimiter = ',')
+	predicted4000Angles = observations[6000:,-1]
+
+	print 'predicting locations...'
+	predLocations = []
+	angleDelta = 0.05
+	for angle, direction in zip(predicted4000Angles, last4000Direction):
+		angle += angleDelta * direction
+		predLoc = predLocOnCircle(angle, direction)
+		predLocations.append(predLoc)
+
+	createSubmission(predLocations, './hmm16_submission_unit_3.csv')
 
 
 def betterHmm16():
@@ -708,7 +738,6 @@ def betterHmm16():
 	last4000Direction = getLast4000Direction(predictedStates, hmm16_pred_actual_mapping)
 
 	print 'getting predicted angles...'
-	# predicted4000Angles = getPredictedAngles()
 	predicted4000Angles = getPredictedAngles2()
 	anglesMapping = loadDict('./angle_mapping.csv')
 
@@ -718,7 +747,7 @@ def betterHmm16():
 		predLoc = predictLocation(angle, direction, anglesMapping)
 		predLocations.append(predLoc)
 
-	createSubmission(predLocations, './hmm16_submission_pred_angles_2.csv')
+	createSubmission(predLocations, './hmm16_submission_pred_angles_3.csv')
 
 
 def graph(formula, x_range):
@@ -788,12 +817,13 @@ def predictLocation(angle, direction, anglesMapping):
 	x_c = np.mean(np.array([x for x, _ in points]))
 	y_c = np.mean(np.array([y for _, y in points]))
 
-	# Project onto line y = tan(angle) * x
-	c = y_c + x_c * tan(angle)
-	x_p = c / (tan(angle) + a / tan(angle))
-	y_p = tan(angle) * x_p
+	# # Project onto line y = tan(angle) * x
+	# c = y_c + x_c * tan(angle)
+	# x_p = c / (tan(angle) + 1 / tan(angle))
+	# y_p = tan(angle) * x_p
 
-	return (x_p, y_p)
+
+	return (x_c, y_c)
 
 # Return a RMSE score given 10000 x 1000 predictions
 def evaluate(predictions):
@@ -1217,75 +1247,113 @@ def getEllipseEquation(x):
 
 	return (y1, y2)
 
-def run():
-	np.set_printoptions(threshold=np.nan)
+def projectPointOntoLine((x,y), angle):
+	# Project onto line y = tan(angle) * x
+	c = y + x * tan(angle)
+	x_p = c / (tan(angle) + 1 / tan(angle))
+	y_p = tan(angle) * x_p
+	return (x_p, y_p)
 
-	# directions = getFinalDirections()
-	# predictedAngles = loadDict('predicted_angles.pkl')
-	# anglesMapping = loadDict('angles_dict.pkl')
+def predLocOnCircle(angle, direction):
+	m = tan(angle)
+	c = 0
+	q = 1.5
+	p = 1.5
+	r = 1.0
 
-	# runTruncatedHMM(20)
-	# writeTruncPredictedStatesCSV(20)
+	A = m*m + 1
+	B = 2 * (m*c - m*q - p)
+	C = q*q - r*r + p*p - 2*c*q + c*c
 
-	# model = joblib.load('trunc_hmm20_diag.pkl')
-	# predictedStates = getTruncPredictedStates(model)
+	root = B*B - 4*A*C
 
-	# predictedStates = loadTruncPredictedStatesCSV(20)
-	# plotPredictedStates(predictedStates, None, 20)
-	
-	# predictedAngles = getPredictedAngles()
+	if root >= 0:
+		# Pick one of two points
+		x_p = ( -B + sqrt(root) ) / (2*A)
+		x_n = ( -B - sqrt(root) ) / (2*A)
 
-	# numRuns = 100
+		y_p = m*x_p
+		y_n = m*x_n
 
-	# print "Get predicted angles"
+		if direction == 1:
+			# Direction=up, so pick point above line
+			if y_p > 2.333333 - x_p:
+				return (x_p, y_p)
+			else:
+				return (x_n, y_n)
+		else:
+			# Direction=down, so pick point below line
+			if y_p <= 2.333333 - x_p:
+				return (x_p, y_p)
+			else:
+				return (x_n, y_n)
+	else:
+		# Tangent point
+		x = 0.543057 if angle > pi/4 else 1.790276
+		y = 1.790276 if angle > pi/4 else 0.543057
 
-	# predAngles = getPredictedAngles2()
-	# writeDict(predAngles, 'predicted_angles2.pkl')
-	# predAngles = predAngles[:numRuns].reshape(-1, 1)
+		# x, y = projectPointOntoLine((x,y), angle)
 
-	# print "Get observations"
+		return (x,y)
 
-	# observations = np.genfromtxt("../Observations.csv", delimiter = ',')
-	# observations = observations[:numRuns]
+def hmm16Annie():
+	hmm16_pred_actual_mapping = {
+		0: 1,
+		1: 11,
+		2: 6,
+		3: 14,
+		4: 9,
+		5: 4,
+		6: 13,
+		7: 5,
+		8: 10,
+		9: 7,
+		10: 0,
+		11: 3,
+		12: 12,
+		13: 2,
+		14: 15,
+		15: 8
+	}
 
-	# obs = np.concatenate((observations, predAngles), axis=1)
+	predictedStates = loadPredictedStatesCSV(16)
 
-	# print "Starting HMM"
-	# start_time = time.time()
-	# k = 20
-	# cov_type = 'diag'
-	# model = hmm.GaussianHMM(n_components=k, covariance_type=cov_type)
-	# X = obs.flatten().reshape(-1, 1)
-	# lengths = [1001] * numRuns
-	# model.fit(X, lengths)
-	# print "Done running HMM"
+	directions = getLast4000Direction(predictedStates, hmm16_pred_actual_mapping)
 
-	# joblib.dump(model, "trunc_hmm%i_%s_run%i.pkl" % (k, cov_type, numRuns))
-	# print("--- %s seconds ---" % (time.time() - start_time))
+	print 'getting predicted angles...'
+	# predicted4000Angles = getPredictedAngles2()
+	observations = np.genfromtxt("../Observations.csv", delimiter = ',')
+	predAngles = observations[6000:,-1]
 
+	# predAngles = loadDict('predicted_angles2.pkl')
+	# directions = loadDict('final_directions.pkl')
 
-	# model = joblib.load('trunc_hmm20_diag_run100.pkl')
-	# predAngles = loadDict('predicted_angles2.pkl').reshape(-1, 1)
-	# predAngles = predAngles[:6000]
+	predLocations = []
+	for angle, direction in zip(predAngles, directions):
+		intersectPts = findCircleIntersection(angle)
 
-	# observations = np.genfromtxt("../Observations.csv", delimiter = ',')
-	# observations = observations[:6000]
+		if intersectPts:
+			if len(intersectPts) == 1:
+				x, y = intersectPts[0]
+				predLocations.append((x, y))
+			elif len(intersectPts) == 2:
+				(x1, y1), (x2, y2) = intersectPts
+				x, y = (x2, y2) if direction == 1 else (x1, y1)
+				predLocations.append((x, y))
+			else:
+				raise Exception('Too many intersection points')
+		else:
+			upperAngle = 1.2762808455
+			lowerAngle = 0.29451544361
 
-	# obs = np.concatenate((observations, predAngles), axis=1)
+			if angle > upperAngle:
+				x, y = (0.543057, 1.790276)
+				predLocations.append((x, y))
+			else:
+				x, y = (1.790276, 0.543057)
+				predLocations.append((x, y))
 
-	# print "Predicting States"
-
-	# X = obs.flatten().reshape(-1, 1)
-	# lengths = [1001] * 6000
-	# predictedStates = model.predict(X, lengths)
-	# predictedStates = np.reshape(predictedStates, (6000,1001))
-
-	# writeDict(predictedStates, 'pred_states2.pkl')
-
-	# predictedStates = loadDict('pred_states2.pkl')
-
-	predictedStates = loadPredictedStatesCSV(10)
-	plotPredictedStates(predictedStates, None, 20)
+	createSubmission(predLocations, './hmm16_submission_annie.csv')
 
 # Get direction of movement: -1 for decreasing angle, +1 for increasing angle
 def getDirection(angleSeq):
@@ -1395,33 +1463,17 @@ def run():
 	# 		labelsDict[int(run)] = (x + 1.5, y + 1.5)
 
 if __name__ == '__main__':
-	# runTruncatedHMM(20)
-	model = joblib.load('trunc_hmm20_diag_run1000.pkl')
-	predictedStates = getTruncPredictedStates(model)
-	# plotPredictedStates(predictedStates, None, 20)
+	np.set_printoptions(threshold=np.nan)
 
-	
-
-
-
-
-
-
-
-	
-
-
-
-
-
-
-
-	
-
-
-
-
-
+	# predictedAngles = getPredictedAngles()
+	# directions = getFinalDirections()
+	# predictedAngles = loadDict('predicted_angles.pkl')
+	# anglesMapping = loadDict('angles_dict.pkl')
+	compareSubmissions('./hmm16_submission_2.csv', './hmm16_submission_annie.csv')
+	# newHmm16()
+	# compare1001AngleTo1000Angle()
+	# unitHmm16()
+	# hmm16Annie()
 
 
 
