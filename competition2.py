@@ -1295,8 +1295,36 @@ def predLocOnCircle(angle, direction):
 		return (x,y)
 
 def hmm16Annie():
-	predAngles = loadDict('predicted_angles2.pkl')
-	directions = loadDict('final_directions.pkl')
+	hmm16_pred_actual_mapping = {
+		0: 1,
+		1: 11,
+		2: 6,
+		3: 14,
+		4: 9,
+		5: 4,
+		6: 13,
+		7: 5,
+		8: 10,
+		9: 7,
+		10: 0,
+		11: 3,
+		12: 12,
+		13: 2,
+		14: 15,
+		15: 8
+	}
+
+	predictedStates = loadPredictedStatesCSV(16)
+
+	directions = getLast4000Direction(predictedStates, hmm16_pred_actual_mapping)
+
+	print 'getting predicted angles...'
+	# predicted4000Angles = getPredictedAngles2()
+	observations = np.genfromtxt("../Observations.csv", delimiter = ',')
+	predAngles = observations[6000:,-1]
+
+	# predAngles = loadDict('predicted_angles2.pkl')
+	# directions = loadDict('final_directions.pkl')
 
 	predLocations = []
 	for angle, direction in zip(predAngles, directions):
@@ -1323,17 +1351,7 @@ def hmm16Annie():
 				x, y = (1.790276, 0.543057)
 				predLocations.append((x, y))
 
-if __name__ == '__main__':
-	np.set_printoptions(threshold=np.nan)
-
-	# predictedAngles = getPredictedAngles()
-	# directions = getFinalDirections()
-	# predictedAngles = loadDict('predicted_angles.pkl')
-	# anglesMapping = loadDict('angles_dict.pkl')
-	compareSubmissions('./hmm16_submission_unit_3.csv', './hmm16_submission_2.csv')
-	# newHmm16()
-	# compare1001AngleTo1000Angle()
-	# unitHmm16()
+	createSubmission(predLocations, './hmm16_submission_annie.csv')
 
 # Get direction of movement: -1 for decreasing angle, +1 for increasing angle
 def getDirection(angleSeq):
@@ -1384,6 +1402,19 @@ def findCircleIntersection(angle):
 
 	return [pt.coords[0] for pt in intersection]
 
+
+if __name__ == '__main__':
+	np.set_printoptions(threshold=np.nan)
+
+	# predictedAngles = getPredictedAngles()
+	# directions = getFinalDirections()
+	# predictedAngles = loadDict('predicted_angles.pkl')
+	# anglesMapping = loadDict('angles_dict.pkl')
+	compareSubmissions('./hmm16_submission_2.csv', './hmm16_submission_annie.csv')
+	# newHmm16()
+	# compare1001AngleTo1000Angle()
+	# unitHmm16()
+	# hmm16Annie()
 
 
 
