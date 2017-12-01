@@ -1114,8 +1114,86 @@ def getEllipseEquation(x):
 
 	return (y1, y2)
 
+def findLocation(angle):
+	A = tan(angle)**2 + 1
+	B = 2 * (-tan(angle) * 1.5 - 1.5)
+	C = 1.5**2 - 1 + 1.5**2
+
+	if B**2 - 4*A*C < 0:
+		return 0,0
+	else:
+		x_intersect1 = (-B + sqrt(B**2 - 4*A*C))/(2*A)
+		x_intersect2 = (-B - sqrt(B**2 - 4*A*C))/(2*A)
+		y_intersect1 = tan(angle) * x_intersect1
+		y_intersect2 = tan(angle) * x_intersect2
+
+		return (x_intersect1, y_intersect1), (x_intersect2, y_intersect2)
+
+def unitCircle():
+	observations = np.genfromtxt("../Observations.csv", delimiter = ',')
+
+	observations = observations[6000:, -1]
+	locations = []
+	directions = getFinalDirections()
+	directions = directions[6000:]
+
+	for idx, obs in enumerate(observations):
+		if directions[idx] == 1:
+			obs = obs + 0.05
+		else:
+			obs = obs - 0.05
+
+		one, two = findLocation(obs)
+
+		if one == 0 and two == 0:
+			if obs > 1.2762808455:
+				locations.append((0.543057, 1.790276))
+			elif obs < 0.29451544361:
+				locations.append((1.790276, 0.543057))
+		else:
+			x_one, y_one = one
+			x_two, y_two = two
+			if  y_one > 2.333333 - x_one and directions[idx] == 1:
+				locations.append((x_one, y_one))
+			elif y_one <= 2.333333 - x_one and directions[idx] == -1:
+				locations.append((x_one, y_one))
+			elif y_two > 2.3333333 - x_two and directions[idx] == 1: 
+				locations.append((x_two, y_two))
+			elif y_two <= 2.3333333 - x_two and directions[idx] == -1: 
+				locations.append((x_two, y_two))
+
+	return locations
+
+def newAttempt():
+	angle_predictions = linearRegression()
+
+	observations = []
+	locations = []
+
+	locationAnglesDict = createLabelsDict().values()
+	for l in locationAnglesDict:
+		for val in l:
+			_, (x, y), obs = val
+			observations.append(obs)
+			locations.append((x, y))
+
+	def find_nearest(array, value):
+		differences = array.reshape(1, -1) - value
+		print differences
+		quit()
+		idx = (np.abs(differences).argmin(axis=0))
+		return idx
+
+	for angle in angle_predictions:
+		idx = find_nearest(np.array(observations), angle)
+		print idx
+		quit()
+
 if __name__ == '__main__':
 	np.set_printoptions(threshold=np.nan)
+	newAttempt()
+	# locations_predictions = unitCircle()
+	# createSubmission(locations_predictions, "unit_circle_2.csv")
 
 	# predictedAngles = getPredictedAngles()
 	predictedStates = loadPredictedStatesCSV(16)
