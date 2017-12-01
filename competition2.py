@@ -16,6 +16,8 @@ from scipy import optimize
 from scipy.optimize import leastsq
 import numpy, scipy.optimize
 from sklearn import linear_model
+from shapely.geometry import LineString
+from shapely.geometry import Point
 
 """
 First column of observations matrix
@@ -74,11 +76,9 @@ def plotPredictedStates(predictedStates, centroidMapping=None, numStates=10):
 	yVals = [[] for _ in range(numStates)]
 	for label in labels:
 		run, step, x, y = label
-		if 1000 <= run < 2000: 
-			run = int(run) - 1000
-			nextState = int(predictedStates[int(run) - 1, int(step) - 1])
-			xVals[nextState].append(x + 1.5)
-			yVals[nextState].append(y + 1.5)
+		nextState = int(predictedStates[int(run) - 1, int(step) - 1])
+		xVals[nextState].append(x + 1.5)
+		yVals[nextState].append(y + 1.5)
 
 	for i in range(numStates):
 		plt.scatter(xVals[i], yVals[i], color=cmap[i], marker='.')
@@ -92,6 +92,8 @@ def plotPredictedStates(predictedStates, centroidMapping=None, numStates=10):
 			yCentroids.extend([botY, topY])
 
 		plt.plot(xCentroids, yCentroids, 'wo')
+
+
 
 	plt.plot([0, 2.5], [2.5, 0], linestyle='solid')
 	plt.plot([0, 3], [0, 3*tan(0.4039724)])
@@ -1027,23 +1029,6 @@ def predictedAnglesLinearRegression():
 	# centroidMapping = loadDict('hmm16_centroid_mapping.csv')
 	# final_locations = circleLineCalculation(angle_predictions, centroidMapping)
 
-# Get direction of movement: -1 for decreasing angle, +1 for increasing angle
-def getDirection(angleSeq):
-	direction = None
-	for i in range(len(angleSeq) - 1, 0, -1):
-		if direction: continue
-
-		prev, curr = angleSeq[i-1], angleSeq[i]
-		if prev < curr:
-			direction = 1
-		elif prev > curr:
-			direction = -1
-
-	if not direction:
-		direction = 1
-
-	return direction
-
 # Find closest angle to given angle
 def findClosestAngle(angle):
 	anglesDict = loadDict('angles_dict.pkl')
@@ -1163,17 +1148,6 @@ def predictLocation(angle, direction, anglesMapping):
 
 	return (x_p, y_p)
 
-# Get most likely direction of 1001th point
-def getFinalDirections():
-	OM = createObservationMatrix()
-	directions = []
-	for row in OM:
-		lastAngleSeq = row[-5:]
-		direction = getDirection(lastAngleSeq)
-		directions.append(direction)
-
-	return directions
-
 def dist(p1, p2):
 	x_d = mean_squared_error([p1[0]], [p2[0]])
 	y_d = mean_squared_error([p2[1]], [p2[1]])
@@ -1241,7 +1215,7 @@ def getEllipseEquation(x):
 
 	return (y1, y2)
 
-if __name__ == '__main__':
+def run():
 	np.set_printoptions(threshold=np.nan)
 
 	# directions = getFinalDirections()
@@ -1259,15 +1233,20 @@ if __name__ == '__main__':
 	
 	# predictedAngles = getPredictedAngles()
 
-	numRuns = 100
+	# numRuns = 100
 
-	predAngles = getPredictedAngles2()
-	predAngles = predAngles[:numRuns]
+	# print "Get predicted angles"
 
-	observations = np.genfromtxt("../Observations.csv", delimiter = ',')
-	observations = observations[:numRuns]
+	# predAngles = getPredictedAngles2()
+	# writeDict(predAngles, 'predicted_angles2.pkl')
+	# predAngles = predAngles[:numRuns].reshape(-1, 1)
 
-	obs = np.concatenate((observations, predAngles), axis=1)
+	# print "Get observations"
+
+	# observations = np.genfromtxt("../Observations.csv", delimiter = ',')
+	# observations = observations[:numRuns]
+
+	# obs = np.concatenate((observations, predAngles), axis=1)
 
 	# print "Starting HMM"
 	# start_time = time.time()
@@ -1281,6 +1260,153 @@ if __name__ == '__main__':
 
 	# joblib.dump(model, "trunc_hmm%i_%s_run%i.pkl" % (k, cov_type, numRuns))
 	# print("--- %s seconds ---" % (time.time() - start_time))
+
+
+	# model = joblib.load('trunc_hmm20_diag_run100.pkl')
+	# predAngles = loadDict('predicted_angles2.pkl').reshape(-1, 1)
+	# predAngles = predAngles[:6000]
+
+	# observations = np.genfromtxt("../Observations.csv", delimiter = ',')
+	# observations = observations[:6000]
+
+	# obs = np.concatenate((observations, predAngles), axis=1)
+
+	# print "Predicting States"
+
+	# X = obs.flatten().reshape(-1, 1)
+	# lengths = [1001] * 6000
+	# predictedStates = model.predict(X, lengths)
+	# predictedStates = np.reshape(predictedStates, (6000,1001))
+
+	# writeDict(predictedStates, 'pred_states2.pkl')
+
+	# predictedStates = loadDict('pred_states2.pkl')
+
+	predictedStates = loadPredictedStatesCSV(10)
+	plotPredictedStates(predictedStates, None, 20)
+
+# Get direction of movement: -1 for decreasing angle, +1 for increasing angle
+def getDirection(angleSeq):
+	direction = None
+	for i in range(len(angleSeq) - 1, 0, -1):
+		if direction: continue
+
+		prev, curr = angleSeq[i-1], angleSeq[i]
+		if prev < curr:
+			direction = 1
+		elif prev > curr:
+			direction = -1
+
+	if not direction:
+		direction = 1
+
+	return direction
+
+# Get most likely direction of 1001th point
+def getFinalDirections():
+	OM = createObservationMatrix()
+	directions = []
+	for row in OM:
+		lastAngleSeq = row[-5:]
+		direction = getDirection(lastAngleSeq)
+		directions.append(direction)
+
+	return directions
+
+def plotUnitCircle(x1, y1, x2, y2):
+	fig = plt.figure()
+	ax = fig.add_subplot(1, 1, 1)
+	circ = plt.Circle((0, 0), radius=1, edgecolor='b', facecolor='None')
+	ax.add_patch(circ)
+	plt.scatter(x1, y1, color='red', marker='.')
+	plt.scatter(x2, y2, color='blue', marker='.')
+	plt.show()
+
+# Find the two intersection points between circle
+def findCircleIntersection(angle):
+	x = 3
+	y = x * tan(angle)
+
+	point = Point(1.5, 1.5)
+	circle = point.buffer(1).boundary
+	line = LineString([(0, 0), (x, y)])
+	intersection = circle.intersection(line)
+
+	return [pt.coords[0] for pt in intersection]
+
+"""
+no intersection: 1161
+one intersection: 0
+two intersections: 8839
+"""
+if __name__ == '__main__':
+	# labels = np.genfromtxt("../LabelSorted.csv", delimiter=',')
+
+	predAngles = loadDict('predicted_angles2.pkl')
+	directions = loadDict('final_directions.pkl')
+
+	predLocations = []
+	for angle, direction in zip(predAngles, directions):
+		intersectPts = findCircleIntersection(angle)
+
+		if intersectPts:
+			if len(intersectPts) == 1:
+				x, y = intersectPts[0]
+				predLocations.append((x, y))
+			elif len(intersectPts) == 2:
+				(x1, y1), (x2, y2) = intersectPts
+				x, y = (x2, y2) if direction == 1 else (x1, y1)
+				predLocations.append((x, y))
+			else:
+				raise Exception('Too many intersection points')
+		else:
+			upperAngle = 1.2762808455
+			lowerAngle = 0.29451544361
+
+			if angle > upperAngle:
+				x, y = (0.543057, 1.790276)
+				predLocations.append((x, y))
+			else:
+				x, y = (1.790276, 0.543057)
+				predLocations.append((x, y))
+
+	# writeDict(predLocations, 'final_pred_locations.pkl')
+
+	# labels = np.genfromtxt("../LabelSorted.csv", delimiter=',')
+	# predLocations = loadDict('final_pred_locations.pkl')
+
+	# for location in predLocations:
+	# 	if not location: continue
+	# 	x, y = location
+	# 	plt.scatter(x, y, marker='.')
+
+	# labelsDict = {}
+	# for label in labels:
+	# 	run, step, x, y = label
+	# 	if int(step) == 1000:
+	# 		labelsDict[int(run)] = (x + 1.5, y + 1.5)
+
+
+
+
+
+
+	
+
+
+
+
+
+
+
+	
+
+
+
+
+
+
+
 
 
 
