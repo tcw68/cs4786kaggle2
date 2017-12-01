@@ -622,13 +622,51 @@ def newHmm16():
 
 	predLocations = []
 	angleDelta = 0.05
-	angleBuffer = 0.025
 	for angle, direction in zip(last4000Angles, last4000Direction):
 		angle += angleDelta * direction
 		predLoc = predictLocation(angle, direction, anglesMapping)
 		predLocations.append(predLoc)
 
 	createSubmission(predLocations, './hmm16_submission_dup.csv')
+
+def unitHmm16():
+	hmm16_pred_actual_mapping = {
+		0: 1,
+		1: 11,
+		2: 6,
+		3: 14,
+		4: 9,
+		5: 4,
+		6: 13,
+		7: 5,
+		8: 10,
+		9: 7,
+		10: 0,
+		11: 3,
+		12: 12,
+		13: 2,
+		14: 15,
+		15: 8
+	}
+
+	predictedStates = loadPredictedStatesCSV(16)
+
+	last4000Direction = getLast4000Direction(predictedStates, hmm16_pred_actual_mapping)
+
+	print 'getting predicted angles...'
+	# predicted4000Angles = getPredictedAngles2()
+	observations = np.genfromtxt("../Observations.csv", delimiter = ',')
+	predicted4000Angles = observations[6000:,-1]
+
+	print 'predicting locations...'
+	predLocations = []
+	angleDelta = 0.05
+	for angle, direction in zip(predicted4000Angles, last4000Direction):
+		angle += angleDelta * direction
+		predLoc = predLocOnCircle(angle, direction)
+		predLocations.append(predLoc)
+
+	createSubmission(predLocations, './hmm16_submission_unit_3.csv')
 
 
 def betterHmm16():
@@ -1169,6 +1207,55 @@ def getEllipseEquation(x):
 
 	return (y1, y2)
 
+def projectPointOntoLine((x,y), angle):
+	# Project onto line y = tan(angle) * x
+	c = y + x * tan(angle)
+	x_p = c / (tan(angle) + 1 / tan(angle))
+	y_p = tan(angle) * x_p
+	return (x_p, y_p)
+
+def predLocOnCircle(angle, direction):
+	m = tan(angle)
+	c = 0
+	q = 1.5
+	p = 1.5
+	r = 1.0
+
+	A = m*m + 1
+	B = 2 * (m*c - m*q - p)
+	C = q*q - r*r + p*p - 2*c*q + c*c
+
+	root = B*B - 4*A*C
+
+	if root >= 0:
+		# Pick one of two points
+		x_p = ( -B + sqrt(root) ) / (2*A)
+		x_n = ( -B - sqrt(root) ) / (2*A)
+
+		y_p = m*x_p
+		y_n = m*x_n
+
+		if direction == 1:
+			# Direction=up, so pick point above line
+			if y_p > 2.333333 - x_p:
+				return (x_p, y_p)
+			else:
+				return (x_n, y_n)
+		else:
+			# Direction=down, so pick point below line
+			if y_p <= 2.333333 - x_p:
+				return (x_p, y_p)
+			else:
+				return (x_n, y_n)
+	else:
+		# Tangent point
+		x = 0.543057 if angle > pi/4 else 1.790276
+		y = 1.790276 if angle > pi/4 else 0.543057
+
+		# x, y = projectPointOntoLine((x,y), angle)
+
+		return (x,y)
+
 if __name__ == '__main__':
 	np.set_printoptions(threshold=np.nan)
 
@@ -1176,9 +1263,10 @@ if __name__ == '__main__':
 	# directions = getFinalDirections()
 	# predictedAngles = loadDict('predicted_angles.pkl')
 	# anglesMapping = loadDict('angles_dict.pkl')
-	# compareSubmissions('./hmm16_submission_2.csv', './hmm16_submission_pred_angles_3.csv')
-	newHmm16()
+	compareSubmissions('./hmm16_submission_unit_3.csv', './hmm16_submission_2.csv')
+	# newHmm16()
 	# compare1001AngleTo1000Angle()
+	# unitHmm16()
 
 
 
