@@ -76,9 +76,11 @@ def plotPredictedStates(predictedStates, centroidMapping=None, numStates=10):
 	yVals = [[] for _ in range(numStates)]
 	for label in labels:
 		run, step, x, y = label
-		nextState = int(predictedStates[int(run) - 1, int(step) - 1])
-		xVals[nextState].append(x + 1.5)
-		yVals[nextState].append(y + 1.5)
+		if 1000 <= run < 2000:
+			run = int(run) - 1000
+			nextState = int(predictedStates[int(run) - 1, int(step) - 1])
+			xVals[nextState].append(x + 1.5)
+			yVals[nextState].append(y + 1.5)
 
 	for i in range(numStates):
 		plt.scatter(xVals[i], yVals[i], color=cmap[i], marker='.')
@@ -386,7 +388,7 @@ def runTruncatedHMM(k, cov_type='diag'):
 	model.fit(X, lengths)
 	print "Done running HMM"
 
-	joblib.dump(model, "trunc_hmm%i_%s.pkl" % (k, cov_type))
+	joblib.dump(model, "trunc_hmm%i_%s_run1000.pkl" % (k, cov_type))
 	print("--- %s seconds ---" % (time.time() - start_time))
 
 def getTruncPredictedStates(model):
@@ -1339,10 +1341,13 @@ no intersection: 1161
 one intersection: 0
 two intersections: 8839
 """
-if __name__ == '__main__':
+def run():
 	# labels = np.genfromtxt("../LabelSorted.csv", delimiter=',')
 
-	predAngles = loadDict('predicted_angles2.pkl')
+	OM = createObservationMatrix()
+
+	# predAngles = loadDict('predicted_angles2.pkl')
+	predAngles = list(OM[:, -1])
 	directions = loadDict('final_directions.pkl')
 
 	predLocations = []
@@ -1370,6 +1375,9 @@ if __name__ == '__main__':
 				x, y = (1.790276, 0.543057)
 				predLocations.append((x, y))
 
+	createSubmission(predLocations[6000:], 'pred_angles_unit_circle.csv')
+
+
 	# writeDict(predLocations, 'final_pred_locations.pkl')
 
 	# labels = np.genfromtxt("../LabelSorted.csv", delimiter=',')
@@ -1385,6 +1393,15 @@ if __name__ == '__main__':
 	# 	run, step, x, y = label
 	# 	if int(step) == 1000:
 	# 		labelsDict[int(run)] = (x + 1.5, y + 1.5)
+
+if __name__ == '__main__':
+	# runTruncatedHMM(20)
+	model = joblib.load('trunc_hmm20_diag_run1000.pkl')
+	predictedStates = getTruncPredictedStates(model)
+	# plotPredictedStates(predictedStates, None, 20)
+
+	
+
 
 
 
