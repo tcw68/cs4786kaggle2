@@ -1,15 +1,10 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from hmmlearn import hmm
-import Markov
+from hmmlearn import hmm	
 from math import *
 from sklearn.externals import joblib
-import time
 import pickle
-from random import randint
 import operator
-from sklearn.metrics import mean_squared_error
-import sys
 from scipy.optimize import curve_fit
 from numpy import pi, r_
 from scipy import optimize
@@ -35,13 +30,63 @@ Average angle: 0.78153661932199991
 - Find peak points and valley points
 """
 
+observations = np.genfromtxt("../Observations.csv", delimiter = ',')
+labels = np.genfromtxt("../Label.csv", delimiter=',')
+sortedLabels = np.genfromtxt("../LabelSorted.csv", delimiter=',')
+
 ############
 # PLOTTING #
 ############
 
+def graph(formula, x_range):
+    x = np.array(x_range)
+    y = eval(formula)
+    plt.plot(x, y)
+    plt.show()
+
+# Plot angles at all steps for run i (starting at 1)
+def plotAnglesAtRun(run):
+	angles = observations[run-1]
+	avgAngle = np.mean(angles)
+
+	# Plot actual observation angles
+	xs = range(1, 1001)
+	plt.plot(xs, angles)
+
+	# Plot labelled points for run
+	labelsDict = createLabelsDict()
+
+	if run in labelsDict:
+		steps = labelsDict[run]
+		for step, _, angle in steps:
+			plt.scatter(step, angle, color='red', marker='.')
+
+	# Plot midline
+	plt.plot([1, 1001], [avgAngle, avgAngle], linestyle='solid')
+
+	# Plot division lines
+	for i in range(0, angles.shape[0], 50):
+		plt.plot([i, i], [0, 1.4], linestyle='solid')
+
+	# Plot peaks and valleys
+	peaks, valleys = findPeaksValleys(angles)
+
+	for x, y in peaks:
+		plt.scatter(x, y, color='green', marker='.')
+
+	for x, y in valleys:
+		plt.scatter(x, y, color='green', marker='.')
+
+	# Plot fitted function
+	amplitude, period, hShift, vShift = getGuessParameters(peaks, valleys)
+	fit_amplitude, fit_period, fit_hShift, fit_vShift = getFittedParameters(angles, amplitude, period, hShift, vShift)
+	fit_ys = [fit_amplitude * np.sin(fit_period * (x + fit_hShift)) + fit_vShift for x in xs]
+	plt.plot(xs, fit_ys)
+
+	plt.show()
+
 # Plot the bot movement based on labelled data
 def plotBotMovement():
-	labels = np.genfromtxt("../Label.csv", delimiter=',')
 
 	locations = {}
 	xVals, yVals = [], []
@@ -58,11 +103,19 @@ def plotBotMovement():
 	plt.plot(xVals, yVals, 'ro')
 	plt.show()
 
+# Plot the distribution of observed angles
+# Min angle = 0.12031 ~ 6.893255233 degrees
+# Max angle = 1.4424 ~ 82.6434324 degrees
+def plotObservedAngleDistribution():
+	OM = createObservationMatrix()
+	angles = OM.flatten().reshape(-1, 1)
+	plt.hist(angles, normed=False, bins=50)
+	plt.show()
+
+
 # Plot the states that the labels are assigned to
 # Currently supports up to HMM 25
 def plotPredictedStates(predictedStates, centroidMapping=None, numStates=10):
-	labels = np.genfromtxt("../Label.csv", delimiter=',')
-
 	# Map each state to a distinct RGB color
 	cmap = ['#ff1111', '#ff8b11', '#fff311', '#9bff11', '#11ff88',
 			'#11f7ff', '#1160ff', '#7011ff', '#ff11e7', '#ff114c',
@@ -104,14 +157,45 @@ def plotPredictedStates(predictedStates, centroidMapping=None, numStates=10):
 	plt.plot([0, 1], [0, 1*tan(1.20409)])
 	plt.show()
 
-# Plot the distribution of observed angles
-# Min angle = 0.12031 ~ 6.893255233 degrees
-# Max angle = 1.4424 ~ 82.6434324 degrees
-def plotObservedAngleDistribution():
-	OM = createObservationMatrix()
-	angles = OM.flatten().reshape(-1, 1)
-	plt.hist(angles, normed=False, bins=50)
+
+#Plots the unit circle with centers (x1, y1) and (x2, y2)
+def plotUnitCircle(x1, y1, x2, y2):
+	# fig = plt.figure()
+	# ax = fig.add_subplot(1, 1, 1)
+	# circ = plt.Circle((0, 0), radius=1, edgecolor='b', facecolor='None')
+	# ax.add_patch(circ)
+	plt.scatter(x1, y1, color='red', marker='.')
+	plt.scatter(x2, y2, color='blue', marker='.')
 	plt.show()
+
+def plotXYAngle(labelsDict, run, flipY=False):
+	labels = labelsDict[run]
+	avgAngle = 0.78153661932199991 # Average angle of all observations
+
+	xs, ys, angles = [], [], []
+	for _, (x, y), angle in labels:
+		xs.append(x)
+		ys.append(y)
+		angles.append(angle)
+
+	for angle, x in zip(angles, xs):
+		plt.plot(angle, x, color='red', marker='.')
+
+	if flipY:
+		angleDiff = [a - avgAngle for a in angles]
+		angles = [avgAngle - diff for diff in angleDiff]
+
+	for angle, y in zip(angles, ys):
+		plt.plot(angle, y, color='blue', marker='.')
+
+	plotMidLine()
+
+	plt.xlabel('Angle')
+	plt.ylabel('X = red, Y = blue')
+
+def plotMidLine():
+	plt.plot([avgAngle, avgAngle], [0, 3], linestyle='solid')
+
 
 #################
 # PREPROCESSING #
@@ -120,7 +204,6 @@ def plotObservedAngleDistribution():
 # Create 6000 x 1000 location matrix from Labels.csv
 # M[i][j] = (x, y) --> At Run i + 1 and Step j + 1, bot is a location (x, y)
 def createLocationMatrix():
-	labels = np.genfromtxt("../Label.csv", delimiter=',')
 	M = np.zeros((6000, 1000), dtype = 'float32, float32')
 
 	for i in range(labels.shape[0]):
@@ -129,25 +212,15 @@ def createLocationMatrix():
 
 	return M
 
-# Create observations matrix from Observations.csv
-# M[i][j] = Angle of bot to x-axis on Run i + 1 and Step j + 1
-def createObservationMatrix():
-	observations = np.genfromtxt("../Observations.csv", delimiter = ',')
-
-	return observations
-
 # Create the labels dictionary
 # Dict format: {Run: [(Step1, (x1, y1)) ... ]}
 def createLabelsDict():
-	labels = np.genfromtxt("../Label.csv", delimiter=',')
-	OM = createObservationMatrix()
-
 	locations = {}
 	for i in range(labels.shape[0]):
 		run, step, x, y = labels[i, :]
 		run, step = int(run), int(step)
 		x, y = x + 1.5, y + 1.5 # Add alpha/beta offsets
-		observation = OM[run-1, step-1]
+		observation = observations[run-1, step-1]
 		val = (step, (x, y), observation)
 
 		if run in locations:
@@ -192,7 +265,6 @@ def writeDict(d, filename):
 
 # Save a CSV file with labels sorted by run and step
 def writeLabelSortedCSV():
-	labels = np.genfromtxt("../Label.csv", delimiter=',')
 	sortedLabels = np.zeros((600000, 4))
 	a = labels[:, 0]
 	b = labels[:, 1]
@@ -216,9 +288,43 @@ def loadPredictedStatesCSV(k=10):
 
 	return predictedStates
 
+# Write to CSV the 10000 x 1000 predicted states matrix
+def writeTruncPredictedStatesCSV(k=10):
+	model = joblib.load('trunc_hmm%i_diag.pkl' % k)
+	predictedStates = getTruncPredictedStates(model)
+	np.savetxt('trunc_hmm%i_predicted_states.csv' % k, predictedStates, fmt='%i', delimiter=",")
+
+# Load 10000 x 1000 predicted states matrix from CSV
+def loadTruncPredictedStatesCSV(k=10):
+	predictedStates = np.genfromtxt("trunc_hmm%i_predicted_states.csv" % k, delimiter=',')
+
+	return predictedStates
+
 ################
 # CALCULATIONS #
 ################
+#Calculate the 1001th angle using linear regression on last 3 angles
+def calculate1001AngleLinearRegression():
+	regr = linear_model.LinearRegression()
+	x_train = [998, 999, 1000]
+	angle1001predictions = []
+
+	for i in range(observations.shape[0]):
+		y_train = []
+		for j in range(3,0,-1):
+			y_train.append(observations[i, -j])
+		regr.fit(np.array(x_train).reshape(-1, 1), np.array(y_train).reshape(-1,1))
+		angle1001predictions.append(round(regr.predict(1001)[0][0], 8))
+
+	for idx, i in enumerate(angle1001predictions):
+		if i < 0.12031:
+			diff = 0.12031 - i
+			angle1001predictions[idx] = 0.12031 + diff
+		elif i > 1.4424:
+			diff = i - 1.4424
+			angle1001predictions[idx] = 1.4424 - diff
+
+	return angle1001predictions
 
 # Calculate the (alpha, beta) offset values from original position
 # alpha = beta = 1.5
@@ -236,8 +342,6 @@ def calculateAlphaBeta(x1, y1, x2, y2, theta1, theta2):
 # Calculate [(minX, minY), (maxX, maxY)] from labels
 # [(minX, minY), (maxX, maxY)] = [(-1.3074, -1.2908), (1.328, 1.2674)]
 def calculateMinMaxXY():
-	labels = np.genfromtxt("../Label.csv", delimiter=',')
-
 	minX, minY = float("inf"), float("inf")
 	maxX, maxY = float("-inf"), float("-inf")
 	for i in range(labels.shape[0]):
@@ -256,7 +360,6 @@ def calculateMinMaxXY():
 # Min step size = 0.00150479234448
 # Max step size = 0.613946069316
 def calculateAverageStepSize():
-	sortedLabels = np.genfromtxt("../LabelSorted.csv", delimiter=',')
 	distances = []
 
 	for i in range(1, sortedLabels.shape[0]):
@@ -277,13 +380,11 @@ def calculateAverageStepSize():
 # Min angle diff = 0.0
 # Max angle diff = 0.4062
 def calculateAverageAngleDiff():
-	OM = createObservationMatrix()
-
 	avgAngleDiffs = []
 	minAngleDiff = float('inf')
 	maxAngleDiff = float('-inf')
 	totalAngleDiffs = []
-	for row in OM:
+	for row in observations:
 		angleDiffs = []
 		for i in range(1, row.shape[0]):
 			angleDiff = abs(row[i] - row[i-1])
@@ -308,10 +409,120 @@ def calculateAverageAngleDiff():
 
 	return np.mean(avgAngleDiffs)
 
+# Return a RMSE score given 10000 x 1000 predictions
+def evaluate(predictions):
+	rmse = 0.0
+	for label in sortedLabels:
+		run, step, x, y = label
+		run, step = int(run), int(step)
+		predX, predY = predictions[run-1, step-1]
+		rmseX = sqrt(mean_squared_error(x, predX))
+		rmseY = sqrt(mean_squared_error(y, predY))
+		rmse += rmseX + rmseY
+
+	return rmse
+
+def findIntersectionLineCircle(angle):
+	A = tan(angle)**2 + 1
+	B = 2 * (-tan(angle) * 1.5 - 1.5)
+	C = 1.5**2 - 1 + 1.5**2
+
+	if B**2 - 4*A*C < 0:
+		return 0,0
+	else:
+		x_intersect1 = (-B + sqrt(B**2 - 4*A*C))/(2*A)
+		x_intersect2 = (-B - sqrt(B**2 - 4*A*C))/(2*A)
+		y_intersect1 = tan(angle) * x_intersect1
+		y_intersect2 = tan(angle) * x_intersect2
+
+		return (x_intersect1, y_intersect1), (x_intersect2, y_intersect2)
+
+# Find the peak and valley points given observation angles for a particular run
+def findPeaksValleys(angles):
+	peaks, valleys = [], []
+	for i in range(0, angles.shape[0], 50):
+		angleSection = angles[i:i+50]
+		minIdx, minAngle = min(enumerate(angleSection), key=operator.itemgetter(1))
+		maxIdx, maxAngle = max(enumerate(angleSection), key=operator.itemgetter(1))
+
+		valleys.append((i + minIdx, minAngle))
+		peaks.append((i + maxIdx, maxAngle))
+
+	return (peaks, valleys)
+
+# Get direction of movement: -1 for decreasing angle, +1 for increasing angle
+def getDirection(angleSeq):
+	direction = None
+	for i in range(len(angleSeq) - 1, 0, -1):
+		if direction: continue
+
+		prev, curr = angleSeq[i-1], angleSeq[i]
+		if prev < curr:
+			direction = 1
+		elif prev > curr:
+			direction = -1
+
+	if not direction:
+		direction = 1
+
+	return direction
+
+# Get most likely direction of 1001th point
+def getFinalDirections():
+	directions = []
+	for row in observations:
+		lastAngleSeq = row[-5:]
+		direction = getDirection(lastAngleSeq)
+		directions.append(direction)
+
+	return directions
+
+# Get whether the last 4000 points are increasing or decreasing states
+def getLast4000Direction(predictedStates, mapping):
+	last4000last5 = np.zeros((4000, 5))
+	last4000last5 = predictedStates[6000:,-5:]
+
+	for i in range(last4000last5.shape[0]):
+		for j in range(last4000last5.shape[1]):
+			last4000last5[i, j] = mapping[last4000last5[i, j]]
+
+	directions = [] # -1 for decreasing, 1 for increasing
+	for last5 in last4000last5:
+		directionFound = False
+		for i in range(len(last5) - 1, 0, -1):
+			if directionFound: continue
+
+			prev, curr = last5[i-1], last5[i]
+			if prev < curr:
+				directions.append(1)
+				directionFound = True
+			elif prev > curr:
+				directions.append(-1)
+				directionFound = True
+
+		if not directionFound:
+			directions.append(1)
+
+	return directions
+
+# Get predictions from model
+def getPredictedStates(model):
+	X = observations.flatten().reshape(-1, 1)
+	lengths = [1000] * 10000
+	predictedStates = model.predict(X, lengths)
+
+	return np.reshape(predictedStates, (10000,1000))
+
+def getTruncPredictedStates(model):
+	truncObservations = observations[1000:2000,:]
+	X = truncObservations.flatten().reshape(-1, 1)
+	lengths = [1000] * 1000
+	predictedStates = model.predict(X, lengths)
+
+	return np.reshape(predictedStates, (1000,1000))
+
 # Get the two centroids for each state
 def getStateCentroids(predictedStates, mapping, numStates=10):
-	labels = np.genfromtxt("../Label.csv", delimiter=',')
-
 	topStateCoords = [[] for _ in range(numStates)]
 	botStateCoords = [[] for _ in range(numStates)]
 	for label in labels:
@@ -341,27 +552,76 @@ def getStateCentroids(predictedStates, mapping, numStates=10):
 
 	return centroidMapping
 
+def performLinearRegression(x_train, y_train, x_test):
+	regr = linear_model.LinearRegression()
+
+	regr.fit(np.array(x_train).reshape(-1, 1), np.array(y_train).reshape(-1,1))
+	return regr.predict(x_test)
+
+# Given the angle and direction of movement, predict the x, y location
+def predictLocation(angle, direction, anglesMapping):
+	angles = sorted(list(anglesMapping.keys()))
+
+	angleBuffer = 0.025
+	angleRange = (angle - angleBuffer, angle + angleBuffer)
+	points = []
+	for a in angles:
+		if a >= angleRange[0] and a <= angleRange[1]:
+			section = 'top' if direction == 1 else 'bot'
+			points += anglesMapping[a][section]
+
+	x_c = np.mean(np.array([x for x, _ in points]))
+	y_c = np.mean(np.array([y for _, y in points]))
+
+	# # Project onto line y = tan(angle) * x
+	# c = y_c + x_c * tan(angle)
+	# x_p = c / (tan(angle) + 1 / tan(angle))
+	# y_p = tan(angle) * x_p
+
+
+	return (x_c, y_c)
+
 ##############
 # ALGORITHMS #
 ##############
 
+#Approximate (x, y) locations using the unit circle and the 1000th angle
+def approximateUnitCircle():
+	lastObservation = observations[6000:, -1]
+	locations = []
+	directions = getFinalDirections()
+	directions = directions[6000:]
+
+	for idx, obs in enumerate(lastObservation):
+		if directions[idx] == 1:
+			obs = obs + 0.05
+		else:
+			obs = obs - 0.05
+
+		one, two = findIntersectionLineCircle(obs)
+
+		if one == 0 and two == 0:
+			if obs > 1.2762808455:
+				locations.append((0.543057, 1.790276))
+			elif obs < 0.29451544361:
+				locations.append((1.790276, 0.543057))
+		else:
+			x_one, y_one = one
+			x_two, y_two = two
+			if  y_one > 2.333333 - x_one and directions[idx] == 1:
+				locations.append((x_one, y_one))
+			elif y_one <= 2.333333 - x_one and directions[idx] == -1:
+				locations.append((x_one, y_one))
+			elif y_two > 2.3333333 - x_two and directions[idx] == 1: 
+				locations.append((x_two, y_two))
+			elif y_two <= 2.3333333 - x_two and directions[idx] == -1: 
+				locations.append((x_two, y_two))
+
+	return locations
+
 # Run HMM with given k components and covariance type
 # Also saves a pickle for future use
 def runHMM(k, cov_type='diag'):
-	observations = np.genfromtxt("../Observations.csv", delimiter = ',')
-
-	# for i in range(observations.shape[0]):
-	# 	for j in range(observations.shape[1]):
-	# 		if j < 3:
-	# 			newObs[i, j, :] = observations[i, j]
-	# 		else:
-	# 			newObs[i, j, 0] = observations[i, j]
-	# 			newObs[i, j, 1] = observations[i, j-1]
-	# 			newObs[i, j, 2] = observations[i, j-2]
-	# 			newObs[i, j, 3] = observations[i, j-3]
-
-	# np.savetxt('newObs,csv', newObs, fmt='%f', delimiter=",")
-
 	print "Starting HMM"
 	start_time = time.time()
 	model = hmm.GaussianHMM(n_components=k, covariance_type=cov_type)
@@ -376,172 +636,19 @@ def runHMM(k, cov_type='diag'):
 # Run HMM with given k components and covariance type
 # Also saves a pickle for future use
 def runTruncatedHMM(k, cov_type='diag'):
-	observations = np.genfromtxt("../Observations.csv", delimiter = ',')
-	observations = observations[:1000,:]
+	truncObservations = observations[:1000,:]
 
 	# np.savetxt('newObs,csv', newObs, fmt='%f', delimiter=",")
 	print "Starting HMM"
 	start_time = time.time()
 	model = hmm.GaussianHMM(n_components=k, covariance_type=cov_type)
-	X = observations.flatten().reshape(-1, 1)
+	X = truncObservations.flatten().reshape(-1, 1)
 	lengths = [1000] * 1000
 	model.fit(X, lengths)
 	print "Done running HMM"
 
 	joblib.dump(model, "trunc_hmm%i_%s_run1000.pkl" % (k, cov_type))
 	print("--- %s seconds ---" % (time.time() - start_time))
-
-def getTruncPredictedStates(model):
-	observations = np.genfromtxt("../Observations.csv", delimiter = ',')
-	observations = observations[1000:2000,:]
-	X = observations.flatten().reshape(-1, 1)
-	lengths = [1000] * 1000
-	predictedStates = model.predict(X, lengths)
-
-	return np.reshape(predictedStates, (1000,1000))
-
-# Write to CSV the 10000 x 1000 predicted states matrix
-def writeTruncPredictedStatesCSV(k=10):
-	model = joblib.load('trunc_hmm%i_diag.pkl' % k)
-	predictedStates = getTruncPredictedStates(model)
-	np.savetxt('trunc_hmm%i_predicted_states.csv' % k, predictedStates, fmt='%i', delimiter=",")
-
-# Load 10000 x 1000 predicted states matrix from CSV
-def loadTruncPredictedStatesCSV(k=10):
-	predictedStates = np.genfromtxt("trunc_hmm%i_predicted_states.csv" % k, delimiter=',')
-
-	return predictedStates
-
-# Get predictions from model
-def getPredictedStates(model):
-	observations = np.genfromtxt("../Observations.csv", delimiter = ',')
-	X = observations.flatten().reshape(-1, 1)
-	lengths = [1000] * 10000
-	predictedStates = model.predict(X, lengths)
-
-	return np.reshape(predictedStates, (10000,1000))
-
-def getPredictedStatesNewObs(model):
-	observations = np.genfromtxt("../Observations.csv", delimiter = ',')
-	X = observations.flatten().reshape(-1, 1)
-	lengths = [[4]*1000] * 10000
-	predictedStates = model.predict(X, lengths)
-
-	return np.reshape(predictedStates, (10000,1000,4))
-
-#Truncates/pads a float f to n decimal places without rounding
-
-def linearRegression():
-	observations = np.genfromtxt("../Observations.csv", delimiter=',')
-	regr = linear_model.LinearRegression()
-	x_train = [998, 999, 1000]
-	angle1001predictions = []
-
-	for i in range(observations.shape[0]):
-		y_train = []
-		for j in range(3,0,-1):
-			y_train.append(observations[i, -j])
-		regr.fit(np.array(x_train).reshape(-1, 1), np.array(y_train).reshape(-1,1))
-		angle1001predictions.append(round(regr.predict(1001)[0][0], 8))
-
-	for idx, i in enumerate(angle1001predictions):
-		if i < 0.12031:
-			diff = 0.12031 - i
-			angle1001predictions[idx] = 0.12031 + diff
-		elif i > 1.4424:
-			diff = i - 1.4424
-			angle1001predictions[idx] = 1.4424 - diff
-
-	return angle1001predictions
-
-def performLinearRegression(x_train, y_train, x_test):
-	regr = linear_model.LinearRegression()
-
-	regr.fit(np.array(x_train).reshape(-1, 1), np.array(y_train).reshape(-1,1))
-	return regr.predict(x_test)
-
-def evaluate(y_actual, y_predicted):
-	rms = sqrt(mean_squared_error(y_actual, y_predicted))
-	return rms
-
-def circleLineCalculation(angle_predictions, centroidMapping):
-	angle_predictions4000 = angle_predictions[6000:]
-	final_locations = {}
-
-
-	for idx, i in enumerate(angle_predictions4000):
-		for bot, top in centroidMapping.values():
-			print bot, top
-			xbot, ybot = bot
-			xtop, ytop = top
-
-			def findLocation(x, y):
-				A = tan(i)**2 + 1
-				print "A", A
-				B = 2*(-tan(i)*y - x)
-				print "B", B
-				C = y**2 - 0.15**2 + x**2
-				print "C", C
-
-				print B**2 - 4*A*C
-
-				if B**2 - 4*A*C < 0:
-					return sys.maxint, sys.maxint
-				else:
-					x_intersect1 = -B + sqrt(B**2 - 4*A*C) / 2*A
-					x_intersect2 = -B - sqrt(B**2 - 4*A*C) / 2*A
-					y_intersect1 = tan(i) * x_intersect1
-					y_intersect2 = tan(i) * x_intersect2
-
-					x_final = (x_intersect1 + x_intersect2) / 2
-					y_final = (y_intersect1 + y_intersect2) / 2
-
-					return x_final, y_final
-
-			x_bot_final, y_bot_final = findLocation(xbot, ybot)
-			x_top_final, y_top_final = findLocation(xtop, ytop)
-
-			if x_bot_final != sys.maxint and y_bot_final != sys.maxint:
-				final_locations.setdefault(idx, []).append((x_bot_final, y_bot_final))
-			elif x_top_final != sys.maxint and y_top_final != sys.maxint:
-				final_locations.setdefault(idx, []).append((x_top_final, y_top_final))
-			else:
-				continue
-		quit()
-
-	for i, v in final_locations.items():
-		print (i, v)
-
-	return final_locations
-
-
-# Get whether the last 4000 points are increasing or decreasing states
-def getLast4000Direction(predictedStates, mapping):
-	last4000last5 = np.zeros((4000, 5))
-	last4000last5 = predictedStates[6000:,-5:]
-
-	for i in range(last4000last5.shape[0]):
-		for j in range(last4000last5.shape[1]):
-			last4000last5[i, j] = mapping[last4000last5[i, j]]
-
-	directions = [] # -1 for decreasing, 1 for increasing
-	for last5 in last4000last5:
-		directionFound = False
-		for i in range(len(last5) - 1, 0, -1):
-			if directionFound: continue
-
-			prev, curr = last5[i-1], last5[i]
-			if prev < curr:
-				directions.append(1)
-				directionFound = True
-			elif prev > curr:
-				directions.append(-1)
-				directionFound = True
-
-		if not directionFound:
-			directions.append(1)
-
-	return directions
 
 # Write HMM 10 submission file
 def hmm10():
@@ -749,97 +856,6 @@ def betterHmm16():
 
 	createSubmission(predLocations, './hmm16_submission_pred_angles_3.csv')
 
-
-def graph(formula, x_range):
-    x = np.array(x_range)
-    y = eval(formula)
-    plt.plot(x, y)
-    # plt.show()
-
-# labelledAngles is dictionary of key = angle and value = (run, step, (x, y))
-# minMaxAngles is dictionary of key = angle and value = 4 coordinates
-def getLabelledAngles():
-	labelsDict = createLabelsDict()
-
-	labelledAngles = {}
-	for run, vals in labelsDict.items():
-		for step, (x, y), angle in vals:
-			labelledAngles.setdefault(angle, []).append((run, step, (x,y)))
-
-	minMaxAngles = {}
-	for angle, vals in labelledAngles.items():
-		botMinX, botMinY = float('inf'), float('inf')
-		botMaxX, botMaxY = float('-inf'), float('-inf')
-		topMinX, topMinY = float('inf'), float('inf')
-		topMaxX, topMaxY = float('-inf'), float('-inf')
-
-		for run, step, (x, y) in vals:
-			if y > 2.5 - x: # Above line
-				if x <= topMinX and y <= topMinY:
-					topMinX, topMinY = x, y
-				if x >= topMaxX and y >= topMaxY:
-					topMaxX, topMaxY = x, y
-			else: # Below line
-				if x <= botMinX and y <= botMinY:
-					botMinX, botMinY = x, y
-				if x >= botMaxX and y >= botMaxY:
-					botMaxX, botMaxY = x, y
-
-		minMaxAngles[angle] = [(botMinX, botMinY), (botMaxX, botMaxY), (topMinX, topMinY), (topMaxX, topMaxY)]
-
-	return (labelledAngles, minMaxAngles)
-
-# Find the peak and valley points given observation angles for a particular run
-def findPeaksValleys(angles):
-	peaks, valleys = [], []
-	for i in range(0, angles.shape[0], 50):
-		angleSection = angles[i:i+50]
-		minIdx, minAngle = min(enumerate(angleSection), key=operator.itemgetter(1))
-		maxIdx, maxAngle = max(enumerate(angleSection), key=operator.itemgetter(1))
-
-		valleys.append((i + minIdx, minAngle))
-		peaks.append((i + maxIdx, maxAngle))
-
-	return (peaks, valleys)
-
-# Given the angle and direction of movement, predict the x, y location
-def predictLocation(angle, direction, anglesMapping):
-	angles = sorted(list(anglesMapping.keys()))
-
-	angleBuffer = 0.025
-	angleRange = (angle - angleBuffer, angle + angleBuffer)
-	points = []
-	for a in angles:
-		if a >= angleRange[0] and a <= angleRange[1]:
-			section = 'top' if direction == 1 else 'bot'
-			points += anglesMapping[a][section]
-
-	x_c = np.mean(np.array([x for x, _ in points]))
-	y_c = np.mean(np.array([y for _, y in points]))
-
-	# # Project onto line y = tan(angle) * x
-	# c = y_c + x_c * tan(angle)
-	# x_p = c / (tan(angle) + 1 / tan(angle))
-	# y_p = tan(angle) * x_p
-
-
-	return (x_c, y_c)
-
-# Return a RMSE score given 10000 x 1000 predictions
-def evaluate(predictions):
-	labels = np.genfromtxt("../LabelSorted.csv", delimiter=',')
-
-	rmse = 0.0
-	for label in labels:
-		run, step, x, y = label
-		run, step = int(run), int(step)
-		predX, predY = predictions[run-1, step-1]
-		rmseX = sqrt(mean_squared_error(x, predX))
-		rmseY = sqrt(mean_squared_error(y, predY))
-		rmse += rmseX + rmseY
-
-	return rmse
-
 # Get the guess parameters for the sine function
 def getGuessParameters(peaks, valleys):
 	# Calculate amplitude
@@ -886,53 +902,10 @@ def getFittedParameters(data, guess_amplitude, guess_period, guess_hShift, guess
 
 	return (est_amplitude, est_period, est_hShift, est_vShift)
 
-# Plot angles at all steps for run i (starting at 1)
-def plotAnglesAtRun(run):
-	OM = createObservationMatrix()
-	angles = OM[run-1]
-	avgAngle = np.mean(angles)
-
-	# Plot actual observation angles
-	xs = range(1, 1001)
-	plt.plot(xs, angles)
-
-	# Plot labelled points for run
-	labelsDict = createLabelsDict()
-
-	if run in labelsDict:
-		steps = labelsDict[run]
-		for step, _, angle in steps:
-			plt.scatter(step, angle, color='red', marker='.')
-
-	# Plot midline
-	plt.plot([1, 1001], [avgAngle, avgAngle], linestyle='solid')
-
-	# Plot division lines
-	for i in range(0, angles.shape[0], 50):
-		plt.plot([i, i], [0, 1.4], linestyle='solid')
-
-	# Plot peaks and valleys
-	peaks, valleys = findPeaksValleys(angles)
-
-	for x, y in peaks:
-		plt.scatter(x, y, color='green', marker='.')
-
-	for x, y in valleys:
-		plt.scatter(x, y, color='green', marker='.')
-
-	# Plot fitted function
-	amplitude, period, hShift, vShift = getGuessParameters(peaks, valleys)
-	fit_amplitude, fit_period, fit_hShift, fit_vShift = getFittedParameters(angles, amplitude, period, hShift, vShift)
-	fit_ys = [fit_amplitude * np.sin(fit_period * (x + fit_hShift)) + fit_vShift for x in xs]
-	plt.plot(xs, fit_ys)
-
-	plt.show()
-
 # Get a 10000 x 1 array of the 1001th predicted angles
 def getPredictedAngles():
-	OM = createObservationMatrix()
 	predAngles = []
-	for angles in OM:
+	for angles in observations:
 		peaks, valleys = findPeaksValleys(angles)
 		amplitude, period, hShift, vShift = getGuessParameters(peaks, valleys)
 		fit_amplitude, fit_period, fit_hShift, fit_vShift = getFittedParameters(angles, amplitude, period, hShift, vShift)
@@ -943,11 +916,11 @@ def getPredictedAngles():
 
 # Get 1001th predicted angles
 def getPredictedAngles2():
-	OM = createObservationMatrix()[:, -4:]
+	lastFour = observations[:, -4:]
 	angleBuckets = [0.4039724, 0.6232251, 1.01099311, 1.20409]
 
 	predAngles = []
-	for run in OM:
+	for run in lastFour:
 		predAngle = 0
 		if run[3] < angleBuckets[0] or run[3] > angleBuckets[3]:
 			# Avg angle
@@ -972,9 +945,7 @@ def performLinearRegression(x_train, y_train, x_test):
 	return regr.coef_, regr.intercept_, regr.predict(np.array(x_test).reshape(-1, 1))
 
 def predictedAnglesLinearRegression():
-	angle_predictions = getPredictedAngles()
-	sortedLabels = np.genfromtxt("../LabelSorted.csv", delimiter=',')
-	observations = np.genfromtxt("../Observations.csv", delimiter=',')
+	angle_predictions = getPredictedAngles()	
 	LM = createLocationMatrix()
 	x_train_bot = []
 	y_train_bot = []
@@ -1082,71 +1053,19 @@ def findClosestAngle(angle):
 # Write angles dictionary
 # angle -> {direction -> [locations...]}
 def writeAnglesDict():
-	OM = createObservationMatrix()
-	labels = np.genfromtxt("../LabelSorted.csv", delimiter=',')
-
 	anglesDict = {}
 	for label in labels:
 		run, step, x, y = label
-		angle = OM[int(run)-1, int(step)-1]
-		angleSeq = OM[int(run)-1, int(step)-6:int(step)-1]
+		angle = observations[int(run)-1, int(step)-1]
+		angleSeq = observations[int(run)-1, int(step)-6:int(step)-1]
 		direction = getDirection(angleSeq)
 		anglesDict.setdefault(angle, {}).setdefault(direction, []).append((x, y))
 
 	writeDict(anglesDict, 'angles_dict.pkl')
 
-def plotXYAngle(labelsDict, run, flipY=False):
-	labels = labelsDict[run]
-	avgAngle = 0.78153661932199991 # Average angle of all observations
-
-	xs, ys, angles = [], [], []
-	for _, (x, y), angle in labels:
-		xs.append(x)
-		ys.append(y)
-		angles.append(angle)
-
-	for angle, x in zip(angles, xs):
-		plt.plot(angle, x, color='red', marker='.')
-
-	if flipY:
-		angleDiff = [a - avgAngle for a in angles]
-		angles = [avgAngle - diff for diff in angleDiff]
-
-	for angle, y in zip(angles, ys):
-		plt.plot(angle, y, color='blue', marker='.')
-
-	plotMidLine()
-
-	plt.xlabel('Angle')
-	plt.ylabel('X = red, Y = blue')
-
-def plotXYAngle(labelsDict, run, flipY=False):
-	labels = labelsDict[run]
-
-	xs, ys, angles = [], [], []
-	for _, (x, y), angle in labels:
-		xs.append(x)
-		ys.append(y)
-		angles.append(angle)
-
-	for angle, x in zip(angles, xs):
-		plt.plot(angle, x, color='red', marker='.')
-
-	for angle, y in zip(angles, ys):
-		plt.plot(angle, y, color='blue', marker='.')
-
-	plt.xlabel('Angle')
-	plt.ylabel('X = red, Y = blue')
-
-def plotMidLine():
-	plt.plot([avgAngle, avgAngle], [0, 3], linestyle='solid')
-
 # Returns dictionary with key as angle and value as {bot: [], top: []}, holding
 # arrays of labeled locations on that angle
 def mapAnglesToLocations():
-	observations = np.genfromtxt("../Observations.csv", delimiter = ',')
-	labels = np.genfromtxt("../Label.csv", delimiter=',')
-
 	angleMapping = {}
 	for label in labels:
 		run, step, x, y = label
@@ -1157,28 +1076,6 @@ def mapAnglesToLocations():
 
 	# writeDict(angleMapping, './angle_mapping.csv')
 	return angleMapping
-
-# Given the angle and direction of movement, predict the x, y location
-def predictLocation(angle, direction, anglesMapping):
-	angles = sorted(list(anglesMapping.keys()))
-
-	angleBuffer = 0.025
-	angleRange = (angle - angleBuffer, angle + angleBuffer)
-	points = []
-	for a in angles:
-		if a >= angleRange[0] and a <= angleRange[1]:
-			section = 'top' if direction == 1 else 'bot'
-			points += anglesMapping[a][section]
-
-	x_c = np.mean(np.array([x for x, _ in points]))
-	y_c = np.mean(np.array([y for _, y in points]))
-
-	# Project onto line y = tan(angle) * x
-	c = y_c + x_c * tan(angle)
-	x_p = c / (tan(angle) + a / tan(angle))
-	y_p = tan(angle) * x_p
-
-	return (x_p, y_p)
 
 def dist(p1, p2):
 	x_d = mean_squared_error([p1[0]], [p2[0]])
@@ -1218,8 +1115,6 @@ def compare1001AngleTo1000Angle():
 
 # Find center point from labelled data
 def findCenterPoint():
-	labels = np.genfromtxt("../LabelSorted.csv", delimiter=',')
-
 	xs, ys = [], []
 	for label in labels:
 		run, step, x, y = label
@@ -1247,130 +1142,6 @@ def getEllipseEquation(x):
 
 	return (y1, y2)
 
-def findLocation(angle):
-	A = tan(angle)**2 + 1
-	B = 2 * (-tan(angle) * 1.5 - 1.5)
-	C = 1.5**2 - 1 + 1.5**2
-
-	if B**2 - 4*A*C < 0:
-		return 0,0
-	else:
-		x_intersect1 = (-B + sqrt(B**2 - 4*A*C))/(2*A)
-		x_intersect2 = (-B - sqrt(B**2 - 4*A*C))/(2*A)
-		y_intersect1 = tan(angle) * x_intersect1
-		y_intersect2 = tan(angle) * x_intersect2
-
-		return (x_intersect1, y_intersect1), (x_intersect2, y_intersect2)
-
-def unitCircle():
-	observations = np.genfromtxt("../Observations.csv", delimiter = ',')
-
-	observations = observations[6000:, -1]
-	locations = []
-	directions = getFinalDirections()
-	directions = directions[6000:]
-
-	for idx, obs in enumerate(observations):
-		if directions[idx] == 1:
-			obs = obs + 0.05
-		else:
-			obs = obs - 0.05
-
-		one, two = findLocation(obs)
-
-		if one == 0 and two == 0:
-			if obs > 1.2762808455:
-				locations.append((0.543057, 1.790276))
-			elif obs < 0.29451544361:
-				locations.append((1.790276, 0.543057))
-		else:
-			x_one, y_one = one
-			x_two, y_two = two
-			if  y_one > 2.333333 - x_one and directions[idx] == 1:
-				locations.append((x_one, y_one))
-			elif y_one <= 2.333333 - x_one and directions[idx] == -1:
-				locations.append((x_one, y_one))
-			elif y_two > 2.3333333 - x_two and directions[idx] == 1: 
-				locations.append((x_two, y_two))
-			elif y_two <= 2.3333333 - x_two and directions[idx] == -1: 
-				locations.append((x_two, y_two))
-
-	return locations
-
-def newAttempt():
-	angle_predictions = linearRegression()
-
-	observations = []
-	locations = []
-
-	locationAnglesDict = createLabelsDict().values()
-	for l in locationAnglesDict:
-		for val in l:
-			_, (x, y), obs = val
-			observations.append(obs)
-			locations.append((x, y))
-
-	def find_nearest(array, value):
-		differences = array.reshape(1, -1) - value
-		print differences
-		quit()
-		idx = (np.abs(differences).argmin(axis=0))
-		return idx
-
-	for angle in angle_predictions:
-		idx = find_nearest(np.array(observations), angle)
-		print idx
-		quit()
-
-def projectPointOntoLine((x,y), angle):
-	# Project onto line y = tan(angle) * x
-	c = y + x * tan(angle)
-	x_p = c / (tan(angle) + 1 / tan(angle))
-	y_p = tan(angle) * x_p
-	return (x_p, y_p)
-
-def predLocOnCircle(angle, direction):
-	m = tan(angle)
-	c = 0
-	q = 1.5
-	p = 1.5
-	r = 1.0
-
-	A = m*m + 1
-	B = 2 * (m*c - m*q - p)
-	C = q*q - r*r + p*p - 2*c*q + c*c
-
-	root = B*B - 4*A*C
-
-	if root >= 0:
-		# Pick one of two points
-		x_p = ( -B + sqrt(root) ) / (2*A)
-		x_n = ( -B - sqrt(root) ) / (2*A)
-
-		y_p = m*x_p
-		y_n = m*x_n
-
-		if direction == 1:
-			# Direction=up, so pick point above line
-			if y_p > 2.333333 - x_p:
-				return (x_p, y_p)
-			else:
-				return (x_n, y_n)
-		else:
-			# Direction=down, so pick point below line
-			if y_p <= 2.333333 - x_p:
-				return (x_p, y_p)
-			else:
-				return (x_n, y_n)
-	else:
-		# Tangent point
-		x = 0.543057 if angle > pi/4 else 1.790276
-		y = 1.790276 if angle > pi/4 else 0.543057
-
-		# x, y = projectPointOntoLine((x,y), angle)
-
-		return (x,y)
-
 def hmm16Annie():
 	hmm16_pred_actual_mapping = {
 		0: 1,
@@ -1397,7 +1168,6 @@ def hmm16Annie():
 
 	print 'getting predicted angles...'
 	# predicted4000Angles = getPredictedAngles2()
-	observations = np.genfromtxt("../Observations.csv", delimiter = ',')
 	predAngles = observations[6000:,-1]
 
 	# predAngles = loadDict('predicted_angles2.pkl')
@@ -1430,67 +1200,14 @@ def hmm16Annie():
 
 	createSubmission(predLocations, './hmm16_submission_annie.csv')
 
-# Get direction of movement: -1 for decreasing angle, +1 for increasing angle
-def getDirection(angleSeq):
-	direction = None
-	for i in range(len(angleSeq) - 1, 0, -1):
-		if direction: continue
-
-		prev, curr = angleSeq[i-1], angleSeq[i]
-		if prev < curr:
-			direction = 1
-		elif prev > curr:
-			direction = -1
-
-	if not direction:
-		direction = 1
-
-	return direction
-
-# Get most likely direction of 1001th point
-def getFinalDirections():
-	OM = createObservationMatrix()
-	directions = []
-	for row in OM:
-		lastAngleSeq = row[-5:]
-		direction = getDirection(lastAngleSeq)
-		directions.append(direction)
-
-	return directions
-
-def plotUnitCircle(x1, y1, x2, y2):
-	fig = plt.figure()
-	ax = fig.add_subplot(1, 1, 1)
-	circ = plt.Circle((0, 0), radius=1, edgecolor='b', facecolor='None')
-	ax.add_patch(circ)
-	plt.scatter(x1, y1, color='red', marker='.')
-	plt.scatter(x2, y2, color='blue', marker='.')
-	plt.show()
-
-# Find the two intersection points between circle
-def findCircleIntersection(angle):
-	x = 3
-	y = x * tan(angle)
-
-	point = Point(1.5, 1.5)
-	circle = point.buffer(1).boundary
-	line = LineString([(0, 0), (x, y)])
-	intersection = circle.intersection(line)
-
-	return [pt.coords[0] for pt in intersection]
-
 """
 no intersection: 1161
 one intersection: 0
 two intersections: 8839
 """
 def run():
-	# labels = np.genfromtxt("../LabelSorted.csv", delimiter=',')
-
-	OM = createObservationMatrix()
-
 	# predAngles = loadDict('predicted_angles2.pkl')
-	predAngles = list(OM[:, -1])
+	predAngles = list(observations[:, -1])
 	directions = loadDict('final_directions.pkl')
 
 	predLocations = []
@@ -1539,12 +1256,14 @@ def run():
 
 if __name__ == '__main__':
 	np.set_printoptions(threshold=np.nan)
+	plotBotMovement()
+	plotUnitCircle(1.5, 1.5, 1.5, 1.5)
 
 	# predictedAngles = getPredictedAngles()
 	# directions = getFinalDirections()
 	# predictedAngles = loadDict('predicted_angles.pkl')
 	# anglesMapping = loadDict('angles_dict.pkl')
-	compareSubmissions('./hmm16_submission_2.csv', './hmm16_submission_annie.csv')
+	# compareSubmissions('./hmm16_submission_2.csv', './hmm16_submission_annie.csv')
 	# newHmm16()
 	# compare1001AngleTo1000Angle()
 	# unitHmm16()
