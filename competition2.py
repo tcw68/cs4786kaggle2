@@ -158,14 +158,28 @@ def plotPredictedStates(predictedStates, centroidMapping=None, numStates=10):
 	plt.show()
 
 
-#Plots the unit circle with centers (x1, y1) and (x2, y2)
-def plotUnitCircle(x1, y1, x2, y2):
-	# fig = plt.figure()
-	# ax = fig.add_subplot(1, 1, 1)
-	# circ = plt.Circle((0, 0), radius=1, edgecolor='b', facecolor='None')
-	# ax.add_patch(circ)
-	plt.scatter(x1, y1, color='red', marker='.')
-	plt.scatter(x2, y2, color='blue', marker='.')
+#Plots the unit circle with center (x1, y1)
+def plotUnitCircle(x1, y1):
+	fig = plt.figure()
+	ax = fig.add_subplot(1, 1, 1)
+	locations = {}
+	xVals, yVals = [], []
+	for i in range(labels.shape[0]):
+		run, step, x, y = labels[i, :]
+		locations.setdefault(run, []).append((step, (x, y)))
+		xVals.append(x+1.5)
+		yVals.append(y+1.5)
+
+	for key, val in locations.items():
+		orderedVal = sorted(val, key=lambda x: x[0])
+		locations[key] = orderedVal
+
+	plt.plot(xVals, yVals, 'ro')
+
+	circ = plt.Circle((x1, y1), radius=1, edgecolor='b', facecolor='None')
+	ax.add_patch(circ)
+	plt.scatter(x1, y1, color='blue', marker='.')
+
 	plt.show()
 
 def plotXYAngle(labelsDict, run, flipY=False):
@@ -1019,15 +1033,15 @@ def predictedAnglesLinearRegression():
 
 	print "creating submission"
 	createSubmission(predLocations,"hmm16_submission_regression.csv")
-	# plt.plot(angle_train_bot, x_train_bot, 'ro')
-	# plt.plot([0,2], [c_bot_x, m_bot_x*2+c_bot_x])
-	# plt.plot(angle_train_bot, y_train_bot, 'bo')
-	# plt.plot([0,2], [c_bot_y, m_bot_y*2+c_bot_y])
-	# plt.plot(angle_train_top, x_train_top, 'go')
-	# plt.plot([0,2], [c_top_x, m_top_x*2+c_top_x])
-	# plt.plot(angle_train_top, y_train_top, 'yo')
-	# plt.plot([0,2], [c_top_y, m_top_y*2+c_top_y])
-	# plt.show()
+	plt.plot(angle_train_bot, x_train_bot, 'ro')
+	plt.plot([0,2], [c_bot_x, m_bot_x*2+c_bot_x])
+	plt.plot(angle_train_bot, y_train_bot, 'bo')
+	plt.plot([0,2], [c_bot_y, m_bot_y*2+c_bot_y])
+	plt.plot(angle_train_top, x_train_top, 'go')
+	plt.plot([0,2], [c_top_x, m_top_x*2+c_top_x])
+	plt.plot(angle_train_top, y_train_top, 'yo')
+	plt.plot([0,2], [c_top_y, m_top_y*2+c_top_y])
+	plt.show()
 
 	# centroidMapping = loadDict('hmm16_centroid_mapping.csv')
 	# final_locations = circleLineCalculation(angle_predictions, centroidMapping)
@@ -1256,8 +1270,7 @@ def run():
 
 if __name__ == '__main__':
 	np.set_printoptions(threshold=np.nan)
-	plotBotMovement()
-	plotUnitCircle(1.5, 1.5, 1.5, 1.5)
+	predictedAnglesLinearRegression()
 
 	# predictedAngles = getPredictedAngles()
 	# directions = getFinalDirections()
