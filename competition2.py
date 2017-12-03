@@ -87,7 +87,6 @@ def plotAnglesAtRun(run):
 
 # Plot the bot movement based on labelled data
 def plotBotMovement():
-
 	locations = {}
 	xVals, yVals = [], []
 	for i in range(labels.shape[0]):
@@ -101,7 +100,19 @@ def plotBotMovement():
 		locations[key] = orderedVal
 
 	plt.plot(xVals, yVals, 'ro')
+	plotUnitCircle(1.5, 1.5)
+
 	plt.show()
+
+# Plots the unit circle with center (x, y)
+def plotUnitCircle(x, y):
+	point = Point(x, y)
+	circle = point.buffer(1).boundary
+	coords = list(circle.coords)
+	xs = [x for x, _ in coords]
+	ys = [y for _, y in coords]
+
+	plt.plot(xs, ys, color='black', linestyle='solid', linewidth=2.0)
 
 # Plot the distribution of observed angles
 # Min angle = 0.12031 ~ 6.893255233 degrees
@@ -148,15 +159,12 @@ def plotPredictedStates(predictedStates, centroidMapping=None, numStates=10):
 
 		plt.plot(xCentroids, yCentroids, 'wo')
 
-
-
 	plt.plot([0, 2.5], [2.5, 0], linestyle='solid')
 	plt.plot([0, 3], [0, 3*tan(0.4039724)])
 	plt.plot([0, 3], [0, 3*tan(0.6232251)])
 	plt.plot([0, 2], [0, 2*tan(1.01099311)])
 	plt.plot([0, 1], [0, 1*tan(1.20409)])
 	plt.show()
-
 
 #Plots the unit circle with center (x1, y1)
 def plotUnitCircle(x1, y1):
