@@ -437,7 +437,7 @@ def evaluate(predictions):
 	for label in sortedLabels:
 		run, step, x, y = label
 		run, step = int(run), int(step)
-		predX, predY = predictions[run-1, step-1]
+		predX, predY = predictions[run-1][step-1]
 		rmseX = sqrt(mean_squared_error(x, predX))
 		rmseY = sqrt(mean_squared_error(y, predY))
 		rmse += rmseX + rmseY
